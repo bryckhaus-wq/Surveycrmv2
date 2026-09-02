@@ -1,0 +1,249 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  ADMIN
+  CSR
+  DRAFTER
+  FIELD_WORKER
+  SIGNING_SURVEYOR
+}
+
+model Spoke {
+  id            String   @id @default(uuid())
+  name          String
+  shortName     String
+  address       String?
+  city          String?
+  state         String?
+  zip           String?
+  lbNumber      String?
+  dailyCapacity Int      @default(15)
+  users            User[]
+  quotes           Quote[]
+  orders           Order[]
+  assets           Asset[]
+  sequenceTrackers SequenceTracker[]
+  createdAt        DateTime          @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model User {
+  id             String      @id @default(uuid())
+  email          String      @unique
+  name           String
+  password       String?
+  role           Role        @default(CSR)
+  isActive       Boolean     @default(true)
+  address        String?
+  latitude       Float?
+  longitude      Float?
+  spokeId        String?
+  spoke          Spoke?      @relation(fields: [spokeId], references: [id])
+  assignedQuotes Quote[]
+  assignedOrders Order[]
+  timesheets     Timesheet[]
+  assets         Asset[]
+  accounts       Account[]
+  sessions       Session[]
+  attachments    Attachment[]
+  auditLogs      AuditLog[]
+}
+
+model Client {
+  id                  String   @id @default(uuid())
+  name                String
+  email               String?
+  phone               String?
+  address             String?
+  clientType          String   @default("Self Pay")
+  defaultInvoiceRules String?  @db.Text
+  specialInstructions String?  @db.Text
+  quotes              Quote[]
+  orders              Order[]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model SurveyType {
+  id               String   @id @default(uuid())
+  name             String   @unique
+  defaultPrice     Decimal  @default(0.00) @db.Decimal(10,2)
+  includedFeatures Json?
+  excludedFeatures Json?
+  quotes           Quote[]
+  orders           Order[]
+}
+
+model Quote {
+  id               String      @id @default(uuid())
+  quoteNumber      Int         @unique @default(autoincrement())
+  clientId         String?
+  client           Client?     @relation(fields: [clientId], references: [id])
+  clientName       String
+  clientEmail      String?
+  clientPhone      String?
+  address          String
+  city             String
+  state            String
+  zip              String
+  latitude         Float?
+  longitude        Float?
+  surveyTypeId     String
+  surveyType       SurveyType  @relation(fields: [surveyTypeId], references: [id])
+  assignedCsrId    String?
+  csr              User?       @relation(fields: [assignedCsrId], references: [id])
+  spokeId          String?
+  spoke            Spoke?      @relation(fields: [spokeId], references: [id])
+  price            Decimal     @default(0.00) @db.Decimal(10,2)
+  status           String      @default("NEW") // NEW, WON, LOST
+  includedFeatures Json?
+  excludedFeatures Json?
+  customScope      String?     @db.Text
+  convertedOrder   Order?
+  documents        Document[]
+  createdAt        DateTime    @default(now())
+}
+
+model Order {
+  id                String      @id @default(uuid())
+  orderNumber       String      @unique // Format: YY-####
+  quoteId           String?     @unique
+  quote             Quote?      @relation(fields: [quoteId], references: [id])
+  clientId          String?
+  client            Client?     @relation(fields: [clientId], references: [id])
+  clientName        String
+  address           String
+  city              String
+  state             String
+  zip               String
+  surveyTypeId      String
+  surveyType        SurveyType  @relation(fields: [surveyTypeId], references: [id])
+  assignedUserId    String?
+  assignedUser      User?       @relation(fields: [assignedUserId], references: [id])
+  spokeId           String?
+  spoke             Spoke?      @relation(fields: [spokeId], references: [id])
+  status            String      @default("FIELD_PENDING") // FIELD_PENDING, DRAFTING, REVIEW, COMPLETED
+  fieldDueDate      DateTime?
+  fieldNotes        String?     @db.Text
+  latitude          Float?
+  longitude         Float?
+  documents         Document[]
+  attachments       Attachment[]
+  timesheets        Timesheet[]
+  createdAt         DateTime    @default(now())
+}
+
+model Document {
+  id         String   @id @default(uuid())
+  fileName   String
+  s3Key      String
+  mimeType   String
+  docType    String   // Quote, FieldSheet, FinalSurvey
+  quoteId    String?
+  quote      Quote?   @relation(fields: [quoteId], references: [id])
+  orderId    String?
+  order      Order?   @relation(fields: [orderId], references: [id])
+  uploadedAt DateTime @default(now())
+}
+
+model Timesheet {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  orderId     String
+  order       Order    @relation(fields: [orderId], references: [id])
+  date        DateTime
+  hours       Decimal  @db.Decimal(5,2)
+  workType    String   // Field, Drafting, Admin
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+}
+
+model Asset {
+  id             String   @id @default(uuid())
+  assetTag       String   @unique
+  category       String   // e.g., GNSS, Total Station, Software, Vehicle
+  manufacturer   String   // e.g., Carlson, Spectra, ACER
+  model          String
+  status         String   @default("DEPLOYABLE") // DEPLOYABLE, DEPLOYED, MAINTENANCE
+  assignedUserId String?
+  assignedUser   User?    @relation(fields: [assignedUserId], references: [id])
+  spokeId        String?
+  spoke          Spoke?   @relation(fields: [spokeId], references: [id])
+  notes          String?  @db.Text
+  updatedAt      DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(uuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model SequenceTracker {
+  id        String   @id @default(uuid())
+  spokeId   String
+  spoke     Spoke    @relation(fields: [spokeId], references: [id])
+  year      Int
+  lastValue Int      @default(0)
+  type      String   // "QUOTE" or "ORDER"
+
+  @@unique([spokeId, year, type])
+}
+
+model Attachment {
+  id         String   @id @default(uuid())
+  fileName   String
+  fileUrl    String   @db.Text
+  fileType   String
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  uploaderId String?
+  uploader   User?    @relation(fields: [uploaderId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  entityType  String   // e.g., "QUOTE", "ORDER", "CLIENT"
+  entityId    String
+  action      String   // e.g., "STATUS_CHANGE", "REASSIGNED", "DATE_CHANGED"
+  details     String?  @db.Text
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+}

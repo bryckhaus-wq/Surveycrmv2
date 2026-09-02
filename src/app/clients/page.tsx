@@ -1,0 +1,273 @@
+"use client";
+
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import {
+  Users,
+  Search,
+  Plus,
+  ArrowRight,
+  Building,
+  Mail,
+  Phone,
+  AlertTriangle,
+  FileText,
+  ClipboardList,
+} from "lucide-react";
+
+interface ClientItem {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  clientType: string;
+  defaultInvoiceRules: string | null;
+  specialInstructions: string | null;
+  createdAt: string;
+  _count?: {
+    quotes: number;
+    orders: number;
+  };
+}
+
+export default function ClientsPage() {
+  const [clients, setClients] = useState<ClientItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("ALL");
+
+  useEffect(() => {
+    fetchClients();
+  }, []);
+
+  const fetchClients = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/clients");
+      if (res.ok) {
+        const data = await res.json();
+        setClients(data);
+      }
+    } catch (err) {
+      console.error("Failed to load clients:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredClients = clients.filter((client) => {
+    const matchesSearch =
+      client.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (client.email && client.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (client.phone && client.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (client.address && client.address.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesType =
+      typeFilter === "ALL" || client.clientType === typeFilter;
+
+    return matchesSearch && matchesType;
+  });
+
+  const getClientTypeBadge = (type: string) => {
+    switch (type) {
+      case "Commercial Builder":
+        return "bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800";
+      case "Title Company":
+        return "bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800";
+      case "Attorney / Legal":
+        return "bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800";
+      case "Engineering Firm":
+        return "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
+      default:
+        return "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700";
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center space-x-2">
+            <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+            <span>Client Directory & Billing Protocols</span>
+          </h1>
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+            Maintain customer accounts, custom invoicing rules, and standing surveyor instructions.
+          </p>
+        </div>
+
+        <Link
+          href="/clients/new"
+          className="inline-flex items-center justify-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none"
+        >
+          <Plus className="w-4 h-4 mr-1.5" />
+          Add New Client
+        </Link>
+      </div>
+
+      {/* Filter and Search Bar */}
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row gap-3 items-center justify-between">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-slate-400 dark:text-slate-500 absolute left-3 top-3" />
+          <input
+            type="text"
+            placeholder="Search by client name, email, phone..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-9 pr-4 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="flex items-center space-x-2 w-full sm:w-auto">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Type:</span>
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 text-sm rounded-lg px-3 py-2 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="ALL">All Account Types</option>
+            <option value="Self Pay">Self Pay</option>
+            <option value="Commercial Builder">Commercial Builder</option>
+            <option value="Title Company">Title Company</option>
+            <option value="Attorney / Legal">Attorney / Legal</option>
+            <option value="Engineering Firm">Engineering Firm</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Clients Data Table */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+        {loading ? (
+          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+            <div className="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-blue-600 rounded-full mb-3" />
+            <p className="text-sm">Loading client directory...</p>
+          </div>
+        ) : filteredClients.length === 0 ? (
+          <div className="p-12 text-center text-slate-500 dark:text-slate-400">
+            <Users className="w-12 h-12 mx-auto text-slate-300 dark:text-slate-700 mb-3" />
+            <h3 className="text-base font-semibold text-slate-700 dark:text-slate-300">No clients found</h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+              {searchTerm || typeFilter !== "ALL"
+                ? "Try adjusting your search criteria."
+                : "Add your first client to start streamlined quoting and billing."}
+            </p>
+            {!searchTerm && typeFilter === "ALL" && (
+              <Link
+                href="/clients/new"
+                className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="w-4 h-4 mr-1.5" />
+                Add Client
+              </Link>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-semibold uppercase text-xs tracking-wider">
+                  <th className="py-3.5 px-4">Client Name</th>
+                  <th className="py-3.5 px-4">Account Type</th>
+                  <th className="py-3.5 px-4">Contact Info</th>
+                  <th className="py-3.5 px-4">Standing Instructions / Rules</th>
+                  <th className="py-3.5 px-4">Activity</th>
+                  <th className="py-3.5 px-4">Date Added</th>
+                  <th className="py-3.5 px-4 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredClients.map((client) => (
+                  <tr
+                    key={client.id}
+                    className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors"
+                  >
+                    <td className="py-3.5 px-4">
+                      <div className="font-bold text-slate-900 dark:text-slate-100">
+                        {client.name}
+                      </div>
+                      {client.address && (
+                        <div className="text-xs text-slate-500 dark:text-slate-400">
+                          {client.address}
+                        </div>
+                      )}
+                    </td>
+
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold border ${getClientTypeBadge(
+                          client.clientType
+                        )}`}
+                      >
+                        {client.clientType}
+                      </span>
+                    </td>
+
+                    <td className="py-3.5 px-4 text-xs">
+                      {client.email && (
+                        <div className="text-slate-700 dark:text-slate-300 flex items-center mb-0.5">
+                          <Mail className="w-3 h-3 mr-1 text-slate-400" />
+                          {client.email}
+                        </div>
+                      )}
+                      {client.phone && (
+                        <div className="text-slate-600 dark:text-slate-400 flex items-center">
+                          <Phone className="w-3 h-3 mr-1 text-slate-400" />
+                          {client.phone}
+                        </div>
+                      )}
+                      {!client.email && !client.phone && (
+                        <span className="text-slate-400 italic">No contact info</span>
+                      )}
+                    </td>
+
+                    <td className="py-3.5 px-4 max-w-xs">
+                      {client.specialInstructions ? (
+                        <div className="flex items-start space-x-1.5 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 p-1.5 rounded border border-amber-200 dark:border-amber-800/60">
+                          <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                          <span className="truncate">{client.specialInstructions}</span>
+                        </div>
+                      ) : client.defaultInvoiceRules ? (
+                        <div className="text-xs text-slate-600 dark:text-slate-400 truncate">
+                          {client.defaultInvoiceRules}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">Standard protocols</span>
+                      )}
+                    </td>
+
+                    <td className="py-3.5 px-4 text-xs text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
+                        {client._count?.quotes || 0}
+                      </span>{" "}
+                      quotes •{" "}
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">
+                        {client._count?.orders || 0}
+                      </span>{" "}
+                      orders
+                    </td>
+
+                    <td className="py-3.5 px-4 text-xs text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                      {new Date(client.createdAt).toLocaleDateString()}
+                    </td>
+
+                    <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                      <Link
+                        href={`/clients/${client.id}`}
+                        className="inline-flex items-center text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-800 px-3 py-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/60 transition-colors"
+                      >
+                        Client Profile
+                        <ArrowRight className="w-3 h-3 ml-1" />
+                      </Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
