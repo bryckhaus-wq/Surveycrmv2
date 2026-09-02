@@ -17,6 +17,7 @@ import {
   Filter,
   ChevronLeft,
   ChevronRight,
+  BarChart3,
 } from "lucide-react";
 
 interface OrderItem {
@@ -184,6 +185,15 @@ export default function OrdersPage() {
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
             Track survey projects across Field Work, CAD Drafting, Surveyor Review, and Final Delivery.
           </p>
+        </div>
+        <div className="flex items-center space-x-2.5">
+          <Link
+            href="/orders/reports"
+            className="inline-flex items-center justify-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-medium text-sm rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none"
+          >
+            <BarChart3 className="w-4 h-4 mr-1.5 text-blue-600 dark:text-blue-400" />
+            Order Reports
+          </Link>
         </div>
       </div>
 

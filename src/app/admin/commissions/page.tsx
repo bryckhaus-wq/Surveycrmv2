@@ -119,8 +119,8 @@ export default function MarketerCommissionsPage() {
               <span>Marketer Commission & Payroll Calculator</span>
             </h1>
           </div>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Calculate accurate payout allocations and commission balances for completed client work orders.
+          <p className="text-sm text-slate-600 dark:text-slate-400 mt-1 font-medium">
+            Commissions are calculated strictly from Orders marked as COMPLETED. Cancelled or pending jobs are excluded.
           </p>
         </div>
 
