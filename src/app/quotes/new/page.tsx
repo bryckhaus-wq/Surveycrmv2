@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import ReactGoogleAutocomplete from "react-google-autocomplete";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 import {
   ArrowLeft,
   Save,
@@ -459,20 +459,15 @@ export default function NewQuotePage() {
           {/* Google Places Autocomplete */}
           <div className="space-y-1">
             <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-              Google Address Autocomplete Search
+              Address Search & Autocomplete
             </label>
-            <ReactGoogleAutocomplete
-              apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyPlaceholderKeyForGooglePlaces"}
+            <AddressAutocomplete
               onPlaceSelected={handlePlaceSelected}
-              options={{
-                types: ["geocode", "establishment"],
-                componentRestrictions: { country: "us" },
-              }}
+              onManualChange={(val) => setAddress(val)}
               placeholder="Start typing an address or property name..."
-              className="w-full px-3 py-2 bg-blue-50/50 dark:bg-slate-800 border border-blue-200 dark:border-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
             <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-              Selecting a location will automatically fill in address fields, latitude, and longitude.
+              Selecting a location or typing an address will update property fields, latitude, and longitude.
             </p>
           </div>
 

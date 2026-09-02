@@ -20,6 +20,7 @@ import {
   Layers,
   Map as MapIcon,
   Navigation,
+  Info,
 } from "lucide-react";
 
 interface FieldWorker {
@@ -74,10 +75,15 @@ const mapOptions = {
 };
 
 export default function DispatcherMapPage() {
+  const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
+  const hasValidApiKey =
+    Boolean(apiKey) &&
+    typeof apiKey === "string" &&
+    apiKey.trim().length > 10 &&
+    !apiKey.includes("Placeholder");
+
   const { isLoaded, loadError } = useJsApiLoader({
-    googleMapsApiKey:
-      process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY ||
-      "AIzaSyPlaceholderKeyForGooglePlaces",
+    googleMapsApiKey: hasValidApiKey ? apiKey! : "",
   });
 
   const [fieldWorkers, setFieldWorkers] = useState<FieldWorker[]>([]);
@@ -162,7 +168,10 @@ export default function DispatcherMapPage() {
     return defaultCenter;
   }, [fieldWorkers, activeOrders]);
 
-  const handleFocusLocation = (lat: number, lng: number) => {
+  const handleFocusLocation = (lat: number, lng: number, item?: { type: "WORKER" | "ORDER"; data: FieldWorker | ActiveOrder }) => {
+    if (item) {
+      setActiveMarker(item);
+    }
     if (map) {
       map.panTo({ lat, lng });
       map.setZoom(14);
@@ -234,7 +243,60 @@ export default function DispatcherMapPage() {
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 h-[680px]">
         {/* Map View (3 cols on large screen) */}
         <div className="lg:col-span-3 rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800 relative bg-slate-100 dark:bg-slate-950">
-          {!isLoaded ? (
+          {!hasValidApiKey ? (
+            <div className="w-full h-full flex flex-col justify-between p-6 bg-slate-900 text-white relative overflow-hidden">
+              <div className="space-y-4 max-w-xl z-10">
+                <div className="inline-flex items-center space-x-1.5 px-3 py-1 bg-blue-950/80 border border-blue-800/60 rounded-full text-xs font-semibold text-blue-300">
+                  <Info className="w-3.5 h-3.5" />
+                  <span>Dispatcher Routing Active</span>
+                </div>
+                <h3 className="text-xl font-bold tracking-tight">
+                  Fleet & Work Order Routing Overview
+                </h3>
+                <p className="text-xs text-slate-400">
+                  Tracking {fieldWorkers.length} field specialist base locations and {activeOrders.length} pending field work orders across regional branches. Click any record in the dispatch sidebar to inspect details and coordinates.
+                </p>
+
+                {activeMarker && (
+                  <div className="p-4 bg-slate-800/90 border border-slate-700 rounded-xl space-y-2 mt-4 text-xs animate-fadeIn">
+                    <div className="font-bold text-sm text-blue-400 flex items-center justify-between">
+                      <span>{activeMarker.type === "WORKER" ? (activeMarker.data as FieldWorker).name : `Order ${(activeMarker.data as ActiveOrder).orderNumber}`}</span>
+                      <span className="text-[10px] bg-blue-950 px-2 py-0.5 rounded text-blue-300 font-mono">
+                        {activeMarker.type}
+                      </span>
+                    </div>
+                    <div className="text-slate-300">
+                      {(activeMarker.data as any).address}
+                    </div>
+                    <div className="text-[11px] font-mono text-emerald-400">
+                      Coordinates: {activeMarker.data.latitude.toFixed(4)}, {activeMarker.data.longitude.toFixed(4)}
+                    </div>
+                    {activeMarker.type === "ORDER" && (
+                      <div className="pt-2">
+                        <Link
+                          href={`/orders/${activeMarker.data.id}`}
+                          className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg text-xs"
+                        >
+                          View Order Details →
+                        </Link>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Grid representation */}
+              <div className="p-3 bg-slate-950/80 border border-slate-800 rounded-xl text-xs text-slate-400 flex flex-col sm:flex-row items-center justify-between gap-2 z-10">
+                <span className="flex items-center text-[11px]">
+                  <Layers className="w-3.5 h-3.5 mr-1 text-slate-500" />
+                  Map Tiles: Add <code className="mx-1 px-1 bg-slate-800 text-blue-300 rounded font-mono">NEXT_PUBLIC_GOOGLE_MAPS_API_KEY</code> in <code className="mx-1 px-1 bg-slate-800 text-slate-300 rounded font-mono">.env</code> to activate satellite view.
+                </span>
+                <span className="text-[11px] font-semibold text-emerald-400">
+                  {fieldWorkers.length} Workers • {activeOrders.length} Orders
+                </span>
+              </div>
+            </div>
+          ) : !isLoaded ? (
             <div className="w-full h-full flex flex-col items-center justify-center space-y-3">
               <div className="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-blue-600 rounded-full" />
               <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
@@ -418,7 +480,7 @@ export default function DispatcherMapPage() {
                   {fieldWorkers.map((w) => (
                     <button
                       key={w.id}
-                      onClick={() => handleFocusLocation(w.latitude, w.longitude)}
+                      onClick={() => handleFocusLocation(w.latitude, w.longitude, { type: "WORKER", data: w })}
                       className="w-full text-left p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:bg-blue-50 dark:hover:bg-blue-950/30 hover:border-blue-300 dark:hover:border-blue-700 transition-colors group"
                     >
                       <div className="font-semibold text-xs text-slate-900 dark:text-slate-100 group-hover:text-blue-600 dark:group-hover:text-blue-400">
@@ -451,7 +513,7 @@ export default function DispatcherMapPage() {
                   {activeOrders.map((o) => (
                     <button
                       key={o.id}
-                      onClick={() => handleFocusLocation(o.latitude, o.longitude)}
+                      onClick={() => handleFocusLocation(o.latitude, o.longitude, { type: "ORDER", data: o })}
                       className="w-full text-left p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/40 hover:bg-red-50 dark:hover:bg-red-950/30 hover:border-red-300 dark:hover:border-red-700 transition-colors group"
                     >
                       <div className="flex items-center justify-between">

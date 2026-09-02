@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRole } from "@/context/RoleContext";
 import { Role } from "@prisma/client";
-import ReactGoogleAutocomplete from "react-google-autocomplete";
+import AddressAutocomplete from "@/components/AddressAutocomplete";
 import {
   ShieldAlert,
   Users,
@@ -571,14 +571,15 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              {/* Home Base / Field Worker Location via Google Autocomplete */}
+              {/* Home Base / Field Worker Location via Autocomplete / Manual Input */}
               <div className="space-y-1 pt-1">
                 <label className="block text-xs font-medium text-slate-600 dark:text-slate-400">
                   Home Base Location / Dispatch Address {newUserRole === Role.FIELD_WORKER && <span className="text-blue-500 font-bold">(Recommended for Field Dispatch)</span>}
                 </label>
                 <div className="relative">
-                  <ReactGoogleAutocomplete
-                    apiKey={process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyPlaceholderKeyForGooglePlaces"}
+                  <AddressAutocomplete
+                    value={newUserAddress}
+                    onManualChange={(val) => setNewUserAddress(val)}
                     onPlaceSelected={(place: any) => {
                       if (!place) return;
                       const addr = place.formatted_address || place.name || "";
@@ -588,13 +589,7 @@ export default function AdminPage() {
                         setNewUserLongitude(place.geometry.location.lng());
                       }
                     }}
-                    options={{
-                      types: ["geocode", "establishment"],
-                      componentRestrictions: { country: "us" },
-                    }}
                     placeholder="Enter worker's base address (e.g. Lindenhurst, NY)..."
-                    defaultValue={newUserAddress}
-                    onChange={(e: any) => setNewUserAddress(e.target.value)}
                     className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   />
                 </div>
