@@ -190,42 +190,56 @@ export default function NewQuotePage() {
   };
 
   const handlePlaceSelected = (place: any) => {
-    if (!place || !place.address_components) return;
+    if (!place) return;
 
+    const components = place.address_components || place.addressComponents || [];
     let streetNumber = "";
     let route = "";
     let locality = "";
     let adminArea = "";
     let postalCode = "";
 
-    for (const component of place.address_components) {
-      const types = component.types;
+    for (const component of components) {
+      const types = component.types || [];
+      const longName = component.long_name || component.longText || "";
+      const shortName = component.short_name || component.shortText || "";
+
       if (types.includes("street_number")) {
-        streetNumber = component.long_name;
+        streetNumber = longName;
       }
       if (types.includes("route")) {
-        route = component.long_name;
+        route = longName;
       }
       if (types.includes("locality")) {
-        locality = component.long_name;
+        locality = longName;
       }
       if (types.includes("administrative_area_level_1")) {
-        adminArea = component.short_name;
+        adminArea = shortName || longName;
       }
       if (types.includes("postal_code")) {
-        postalCode = component.long_name;
+        postalCode = longName;
       }
     }
 
-    const fullStreetAddress = `${streetNumber} ${route}`.trim() || place.formatted_address || place.name || "";
+    const fullStreetAddress = `${streetNumber} ${route}`.trim() || place.formatted_address || place.formattedAddress || place.name || "";
     setAddress(fullStreetAddress);
     if (locality) setCity(locality);
     if (adminArea) setState(adminArea);
     if (postalCode) setZip(postalCode);
 
-    if (place.geometry && place.geometry.location) {
-      setLatitude(place.geometry.location.lat());
-      setLongitude(place.geometry.location.lng());
+    const lat =
+      typeof place.geometry?.location?.lat === "function"
+        ? place.geometry.location.lat()
+        : place.geometry?.location?.lat ?? place.geometry?.location?.latitude ?? place.location?.latitude ?? null;
+
+    const lng =
+      typeof place.geometry?.location?.lng === "function"
+        ? place.geometry.location.lng()
+        : place.geometry?.location?.lng ?? place.geometry?.location?.longitude ?? place.location?.longitude ?? null;
+
+    if (lat !== null && lng !== null && typeof lat === "number" && typeof lng === "number") {
+      setLatitude(lat);
+      setLongitude(lng);
     }
   };
 
