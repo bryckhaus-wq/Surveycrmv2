@@ -4,80 +4,33 @@ import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useSpoke } from "@/context/SpokeContext";
 import {
-  PieChart,
-  Pie,
-  Cell,
-  Tooltip,
-  Legend,
-  ResponsiveContainer,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-} from "recharts";
-import {
   Calendar,
   ArrowLeft,
-  CheckCircle2,
-  XCircle,
-  Clock,
-  DollarSign,
-  TrendingUp,
-  Percent,
-  Briefcase,
-  AlertCircle,
-  ExternalLink,
   RefreshCw,
+  AlertCircle,
+  TrendingUp,
+  Building2,
+  Users,
+  MapPin,
 } from "lucide-react";
 
-interface ReportTotals {
-  totalQuotes: number;
-  wonCount: number;
-  lostCount: number;
-  openCount: number;
-  commissionableCount: number;
-  totalWonAmount: number;
-  totalQuotedAmount: number;
-}
-
-interface ReportPercentages {
-  wonPercentage: number;
-  lostPercentage: number;
-  openPercentage: number;
-}
-
-interface ChartItem {
+interface GroupStats {
   name: string;
-  value: number;
-  percentage: number;
-  color: string;
+  quotes: number;
+  quoteAmt: number;
+  won: number;
+  wonAmt: number;
+  lost: number;
+  lostAmt: number;
+  open: number;
+  openAmt: number;
+  winRate: number;
 }
-
-interface FollowUpQuote {
-  id: string;
-  quoteNumber: number;
-  clientName: string;
-  clientEmail: string | null;
-  clientPhone: string | null;
-  address: string;
-  city: string;
-  state: string;
-  zip: string;
-  price: number | string;
-  status: string;
-  createdAt: string;
-  surveyType?: { id: string; name: string };
-  csr?: { id: string; name: string; email: string } | null;
-  marketer?: { id: string; name: string; email: string } | null;
-}
-
-const COLORS = ["#10B981", "#EF4444", "#3B82F6", "#F59E0B", "#8B5CF6"];
 
 export default function QuotesReportsPage() {
   const { spokeId } = useSpoke();
 
-  // Date state default to past 30 days
+  // Date state defaults to past 30 days
   const today = new Date().toISOString().split("T")[0];
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
     .toISOString()
@@ -88,28 +41,14 @@ export default function QuotesReportsPage() {
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [totals, setTotals] = useState<ReportTotals>({
-    totalQuotes: 0,
-    wonCount: 0,
-    lostCount: 0,
-    openCount: 0,
-    commissionableCount: 0,
-    totalWonAmount: 0,
-    totalQuotedAmount: 0,
-  });
-  const [percentages, setPercentages] = useState<ReportPercentages>({
-    wonPercentage: 0,
-    lostPercentage: 0,
-    openPercentage: 0,
-  });
-  const [chartData, setChartData] = useState<ChartItem[]>([]);
-  const [followUpQuotes, setFollowUpQuotes] = useState<FollowUpQuote[]>([]);
-  const [statusCounts, setStatusCounts] = useState<Record<string, number>>({});
-  const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const [globalConversionRate, setGlobalConversionRate] = useState<number>(0);
+  const [clientStats, setClientStats] = useState<GroupStats[]>([]);
+  const [spokeStats, setSpokeStats] = useState<GroupStats[]>([]);
+  const [marketerStats, setMarketerStats] = useState<GroupStats[]>([]);
+  const [spokeTotal, setSpokeTotal] = useState<GroupStats | null>(null);
+  const [marketerTotal, setMarketerTotal] = useState<GroupStats | null>(null);
+  const [clientTotal, setClientTotal] = useState<GroupStats | null>(null);
 
   const fetchReports = async () => {
     try {
@@ -127,11 +66,13 @@ export default function QuotesReportsPage() {
       }
 
       const data = await res.json();
-      setTotals(data.totals || {});
-      setPercentages(data.percentages || {});
-      setChartData(data.chartData || []);
-      setFollowUpQuotes(data.followUpQuotes || []);
-      setStatusCounts(data.statusCounts || {});
+      setGlobalConversionRate(data.globalConversionRate ?? 0);
+      setClientStats(data.clientStats || []);
+      setSpokeStats(data.spokeStats || []);
+      setMarketerStats(data.marketerStats || []);
+      setSpokeTotal(data.spokeTotal || null);
+      setMarketerTotal(data.marketerTotal || null);
+      setClientTotal(data.clientTotal || null);
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to load reports.");
@@ -144,9 +85,13 @@ export default function QuotesReportsPage() {
     fetchReports();
   }, [startDate, endDate, spokeId]);
 
+  const formatAmt = (amt: number) => {
+    return Math.round(amt || 0).toLocaleString();
+  };
+
   return (
     <div className="space-y-6">
-      {/* Header with Navigation & Date Picker */}
+      {/* Top Header & Date Filters */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <div className="flex items-center space-x-2">
@@ -161,7 +106,7 @@ export default function QuotesReportsPage() {
             </h1>
           </div>
           <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Analyze win/loss ratios, commissionable volume, and actionable open follow-ups.
+            Aggregated conversion metrics across Clients, Regional Spokes, and Marketers.
           </p>
         </div>
 
@@ -205,309 +150,273 @@ export default function QuotesReportsPage() {
         </div>
       )}
 
-      {/* Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Won */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
-              Total Jobs Won
-            </span>
-            <div className="p-2 bg-emerald-100 dark:bg-emerald-950/60 rounded-lg text-emerald-600 dark:text-emerald-400">
-              <CheckCircle2 className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-3xl font-black text-slate-900 dark:text-slate-100">
-              {totals.wonCount}
-            </span>
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
-              ({percentages.wonPercentage}%)
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Won Revenue: <span className="font-semibold text-slate-800 dark:text-slate-200">${totals.totalWonAmount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
-          </p>
-        </div>
-
-        {/* Total Lost */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-              Total Jobs Lost
-            </span>
-            <div className="p-2 bg-rose-100 dark:bg-rose-950/60 rounded-lg text-rose-600 dark:text-rose-400">
-              <XCircle className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-3xl font-black text-slate-900 dark:text-slate-100">
-              {totals.lostCount}
-            </span>
-            <span className="text-xs font-bold text-rose-600 dark:text-rose-400">
-              ({percentages.lostPercentage}%)
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Closed/Declined proposals
-          </p>
-        </div>
-
-        {/* Total Commissionable Jobs */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-cyan-600 dark:text-cyan-400 uppercase tracking-wider">
-              Total Commissionable Jobs
-            </span>
-            <div className="p-2 bg-cyan-100 dark:bg-cyan-950/60 rounded-lg text-cyan-600 dark:text-cyan-400">
-              <Briefcase className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-3xl font-black text-slate-900 dark:text-slate-100">
-              {totals.commissionableCount}
-            </span>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              marketer assigned
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Attributed to marketing & sales
-          </p>
-        </div>
-
-        {/* Total Quotes Pipeline */}
-        <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
-              Total Quoted Value
-            </span>
-            <div className="p-2 bg-blue-100 dark:bg-blue-950/60 rounded-lg text-blue-600 dark:text-blue-400">
-              <DollarSign className="w-5 h-5" />
-            </div>
-          </div>
-          <div className="flex items-baseline space-x-2">
-            <span className="text-2xl font-black text-slate-900 dark:text-slate-100">
-              ${totals.totalQuotedAmount?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </span>
-          </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Across {totals.totalQuotes} total estimates
-          </p>
-        </div>
-      </div>
-
-      {/* Visual Analytics Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Pie Chart: Won vs Lost vs Open */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
-          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center justify-between">
-            <span>Quote Win / Loss / Open Distribution</span>
-            <span className="text-xs font-normal text-slate-500">By Count & Ratio</span>
-          </h2>
-
-          <div className="h-72 w-full flex items-center justify-center">
-            {mounted && totals.totalQuotes > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={chartData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={95}
-                    paddingAngle={4}
-                    dataKey="value"
-                    label={({ name, percent }: any) => `${name}: ${(percent * 100).toFixed(0)}%`}
-                  >
-                    {chartData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color || COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    formatter={(value: any, name: any) => [`${value} Quotes`, name]}
-                    contentStyle={{
-                      backgroundColor: "#1e293b",
-                      borderRadius: "8px",
-                      border: "none",
-                      color: "#fff",
-                      fontSize: "12px",
-                    }}
-                  />
-                  <Legend verticalAlign="bottom" height={36} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-center text-slate-400 text-xs">
-                No quote proposals recorded in selected date range.
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Breakdown Summary Card */}
-        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col justify-between">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 mb-4">
-              Conversion Performance Summary
+      {/* 2-Column CSS Grid Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* LEFT COLUMN: Client Panel (col-span-12 lg:col-span-7) */}
+        <div className="col-span-12 lg:col-span-7 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm flex flex-col">
+          {/* Panel Header */}
+          <div className="px-4 py-3 bg-gray-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 rounded-t-xl flex items-center justify-between">
+            <h2 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider flex items-center space-x-2">
+              <Building2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+              <span>Client Aggregation</span>
             </h2>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between text-xs font-semibold mb-1">
-                  <span className="text-emerald-600 dark:text-emerald-400 flex items-center">
-                    <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full inline-block mr-1.5" />
-                    Won Proposals ({totals.wonCount})
-                  </span>
-                  <span className="text-slate-900 dark:text-slate-100">{percentages.wonPercentage}%</span>
-                </div>
-                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="bg-emerald-500 h-2.5 rounded-full transition-all duration-500"
-                    style={{ width: `${percentages.wonPercentage}%` }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-semibold mb-1">
-                  <span className="text-rose-600 dark:text-rose-400 flex items-center">
-                    <span className="w-2.5 h-2.5 bg-rose-500 rounded-full inline-block mr-1.5" />
-                    Lost Proposals ({totals.lostCount})
-                  </span>
-                  <span className="text-slate-900 dark:text-slate-100">{percentages.lostPercentage}%</span>
-                </div>
-                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="bg-rose-500 h-2.5 rounded-full transition-all duration-500"
-                    style={{ width: `${percentages.lostPercentage}%` }}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-xs font-semibold mb-1">
-                  <span className="text-blue-600 dark:text-blue-400 flex items-center">
-                    <span className="w-2.5 h-2.5 bg-blue-500 rounded-full inline-block mr-1.5" />
-                    Open / Follow-Up Needed ({totals.openCount})
-                  </span>
-                  <span className="text-slate-900 dark:text-slate-100">{percentages.openPercentage}%</span>
-                </div>
-                <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5 overflow-hidden">
-                  <div
-                    className="bg-blue-500 h-2.5 rounded-full transition-all duration-500"
-                    style={{ width: `${percentages.openPercentage}%` }}
-                  />
-                </div>
-              </div>
-            </div>
+            <span className="text-xs text-slate-500 font-medium">
+              {clientStats.length} Clients
+            </span>
           </div>
 
-          <div className="mt-6 p-4 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
-            <div>
-              <span className="text-slate-500 dark:text-slate-400 block">Total Quotes Processed:</span>
-              <span className="text-base font-bold text-slate-900 dark:text-slate-100">{totals.totalQuotes}</span>
-            </div>
-            <div className="text-right">
-              <span className="text-slate-500 dark:text-slate-400 block">Total Commission Pipeline:</span>
-              <span className="text-base font-bold text-cyan-600 dark:text-cyan-400">{totals.commissionableCount} orders</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Actionable Follow-Up Table */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-2">
-              <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-              <span>Quotes Needing Client Follow-Up</span>
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Open and pending estimates requiring sales touchpoint ({followUpQuotes.length} total)
-            </p>
-          </div>
-        </div>
-
-        {loading ? (
-          <div className="p-8 text-center text-xs text-slate-500">
-            <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-600" />
-            Loading follow-up quotes...
-          </div>
-        ) : followUpQuotes.length === 0 ? (
-          <div className="p-8 text-center text-xs text-slate-400 italic">
-            No open quotes requiring follow-up in this period.
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
+          {/* Independent Scrollable Table Wrapper */}
+          <div className="overflow-x-auto overflow-y-auto max-h-[750px]">
             <table className="w-full text-left border-collapse text-xs">
-              <thead>
-                <tr className="bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider">
-                  <th className="py-3 px-4">Quote #</th>
-                  <th className="py-3 px-4">Client</th>
-                  <th className="py-3 px-4">Address / City</th>
-                  <th className="py-3 px-4">Survey Type</th>
-                  <th className="py-3 px-4">Quoted Amount</th>
-                  <th className="py-3 px-4">Assigned CSR</th>
-                  <th className="py-3 px-4">Marketer</th>
-                  <th className="py-3 px-4">Status</th>
-                  <th className="py-3 px-4 text-right">Action</th>
+              <thead className="sticky top-0 z-10 bg-gray-50 dark:bg-slate-800/90 shadow-sm backdrop-blur-sm">
+                <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold">
+                  <th className="py-2.5 px-3 whitespace-nowrap">Client</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Quotes</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Quote Amt</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Won</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Won Amt</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Lost</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Lost Amt</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Open</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Open Amt</th>
+                  <th className="py-2.5 px-3 text-right whitespace-nowrap">Win Rate</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
-                {followUpQuotes.map((q) => (
-                  <tr key={q.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors">
-                    <td className="py-3 px-4 font-mono font-bold text-blue-600 dark:text-blue-400">
-                      #{q.quoteNumber}
-                    </td>
-                    <td className="py-3 px-4">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100">{q.clientName}</div>
-                      {q.clientEmail && (
-                        <div className="text-[11px] text-slate-400">{q.clientEmail}</div>
-                      )}
-                    </td>
-                    <td className="py-3 px-4 max-w-xs truncate">
-                      <div>{q.address}</div>
-                      <div className="text-[11px] text-slate-400">{q.city}, {q.state}</div>
-                    </td>
-                    <td className="py-3 px-4 font-medium">
-                      {q.surveyType?.name || "Standard Survey"}
-                    </td>
-                    <td className="py-3 px-4 font-bold text-slate-900 dark:text-slate-100">
-                      ${Number(q.price).toFixed(2)}
-                    </td>
-                    <td className="py-3 px-4">
-                      {q.csr ? q.csr.name : <span className="text-slate-400 italic">Unassigned</span>}
-                    </td>
-                    <td className="py-3 px-4">
-                      {q.marketer ? (
-                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-cyan-50 dark:bg-cyan-950/60 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
-                          {q.marketer.name}
-                        </span>
-                      ) : (
-                        <span className="text-slate-400 italic">Direct</span>
-                      )}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                        {q.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      <Link
-                        href={`/quotes/${q.id}`}
-                        className="inline-flex items-center px-2.5 py-1 bg-blue-50 dark:bg-blue-950/50 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 rounded text-xs font-semibold transition-colors"
-                      >
-                        View
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </Link>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200 font-medium">
+                {loading ? (
+                  <tr>
+                    <td colSpan={10} className="p-8 text-center text-slate-400">
+                      <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-600" />
+                      Loading client data...
                     </td>
                   </tr>
-                ))}
+                ) : clientStats.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} className="p-8 text-center text-slate-400 italic">
+                      No quotes found for selected date range.
+                    </td>
+                  </tr>
+                ) : (
+                  clientStats.map((item, idx) => (
+                    <tr
+                      key={idx}
+                      className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                    >
+                      <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100 max-w-[140px] truncate" title={item.name}>
+                        {item.name}
+                      </td>
+                      <td className="py-2 px-3 text-right font-mono">{item.quotes}</td>
+                      <td className="py-2 px-3 text-right font-mono">{formatAmt(item.quoteAmt)}</td>
+                      <td className="py-2 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{item.won}</td>
+                      <td className="py-2 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{formatAmt(item.wonAmt)}</td>
+                      <td className="py-2 px-3 text-right font-mono text-rose-600 dark:text-rose-400 font-semibold">{item.lost}</td>
+                      <td className="py-2 px-3 text-right font-mono text-rose-600 dark:text-rose-400 font-semibold">{formatAmt(item.lostAmt)}</td>
+                      <td className="py-2 px-3 text-right font-mono text-blue-600 dark:text-blue-400 font-semibold">{item.open}</td>
+                      <td className="py-2 px-3 text-right font-mono text-blue-600 dark:text-blue-400 font-semibold">{formatAmt(item.openAmt)}</td>
+                      <td className="py-2 px-3 text-right font-mono font-bold">
+                        {item.winRate}%
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
+              {clientTotal && clientStats.length > 0 && (
+                <tfoot className="sticky bottom-0 z-10 bg-gray-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600 font-bold text-slate-900 dark:text-slate-100">
+                  <tr>
+                    <td className="py-2.5 px-3 font-bold uppercase">{clientTotal.name}</td>
+                    <td className="py-2.5 px-3 text-right font-mono">{clientTotal.quotes}</td>
+                    <td className="py-2.5 px-3 text-right font-mono">{formatAmt(clientTotal.quoteAmt)}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">{clientTotal.won}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">{formatAmt(clientTotal.wonAmt)}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-rose-600 dark:text-rose-400">{clientTotal.lost}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-rose-600 dark:text-rose-400">{formatAmt(clientTotal.lostAmt)}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-blue-600 dark:text-blue-400">{clientTotal.open}</td>
+                    <td className="py-2.5 px-3 text-right font-mono text-blue-600 dark:text-blue-400">{formatAmt(clientTotal.openAmt)}</td>
+                    <td className="py-2.5 px-3 text-right font-mono font-black">{clientTotal.winRate}%</td>
+                  </tr>
+                </tfoot>
+              )}
             </table>
           </div>
-        )}
+        </div>
+
+        {/* RIGHT COLUMN: Vertical Stack of Three Cards (col-span-12 lg:col-span-5) */}
+        <div className="col-span-12 lg:col-span-5 space-y-6">
+          {/* Card 1: Conversion Rate Card */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 bg-gray-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider text-center">
+                Conversion Rate
+              </h3>
+            </div>
+            <div className="p-6 flex flex-col items-center justify-center">
+              <div className="text-6xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
+                {globalConversionRate} %
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-2 font-medium">
+                Overall Quotes Won to Total Quotes Ratio
+              </p>
+            </div>
+          </div>
+
+          {/* Card 2: Spoke Aggregation Table Card */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+            <div className="px-4 py-3 bg-gray-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center space-x-1.5">
+                <MapPin className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Spoke</span>
+              </h3>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {spokeStats.length} Branches
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold">
+                    <th className="py-2.5 px-3 whitespace-nowrap">Spoke</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Quotes</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Quote Amt</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Won</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Won Amt</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Lost</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Lost Amt</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Open</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Open Amt</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Win Rate</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200 font-medium">
+                  {spokeStats.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-4 text-center text-slate-400 italic">
+                        No spoke activity recorded in this period.
+                      </td>
+                    </tr>
+                  ) : (
+                    spokeStats.map((item, idx) => (
+                      <tr
+                        key={idx}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      >
+                        <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                          {item.name}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono">{item.quotes}</td>
+                        <td className="py-2 px-3 text-right font-mono">{formatAmt(item.quoteAmt)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{item.won}</td>
+                        <td className="py-2 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{formatAmt(item.wonAmt)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-rose-600 dark:text-rose-400 font-semibold">{item.lost}</td>
+                        <td className="py-2 px-3 text-right font-mono text-rose-600 dark:text-rose-400 font-semibold">{formatAmt(item.lostAmt)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-blue-600 dark:text-blue-400 font-semibold">{item.open}</td>
+                        <td className="py-2 px-3 text-right font-mono text-blue-600 dark:text-blue-400 font-semibold">{formatAmt(item.openAmt)}</td>
+                        <td className="py-2 px-3 text-right font-mono font-bold">
+                          {item.winRate}%
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {spokeTotal && spokeStats.length > 0 && (
+                  <tfoot className="bg-gray-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600 font-bold text-slate-900 dark:text-slate-100">
+                    <tr>
+                      <td className="py-2.5 px-3 font-bold uppercase">{spokeTotal.name}</td>
+                      <td className="py-2.5 px-3 text-right font-mono">{spokeTotal.quotes}</td>
+                      <td className="py-2.5 px-3 text-right font-mono">{formatAmt(spokeTotal.quoteAmt)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">{spokeTotal.won}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">{formatAmt(spokeTotal.wonAmt)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-rose-600 dark:text-rose-400">{spokeTotal.lost}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-rose-600 dark:text-rose-400">{formatAmt(spokeTotal.lostAmt)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-blue-600 dark:text-blue-400">{spokeTotal.open}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-blue-600 dark:text-blue-400">{formatAmt(spokeTotal.openAmt)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono font-black">{spokeTotal.winRate}%</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+
+          {/* Card 3: Marketer Aggregation Table Card */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col">
+            <div className="px-4 py-3 bg-gray-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center space-x-1.5">
+                <Users className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                <span>Marketer</span>
+              </h3>
+              <span className="text-[11px] text-slate-500 font-medium">
+                {marketerStats.length} Marketers
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="bg-gray-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-bold">
+                    <th className="py-2.5 px-3 whitespace-nowrap">Marketer</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Quotes</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Quote Amt</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Won</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Won Amt</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Lost</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Lost Amt</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Open</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Open Amt</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Win Rate</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200 font-medium">
+                  {marketerStats.length === 0 ? (
+                    <tr>
+                      <td colSpan={10} className="p-4 text-center text-slate-400 italic">
+                        No marketer activity recorded in this period.
+                      </td>
+                    </tr>
+                  ) : (
+                    marketerStats.map((item, idx) => (
+                      <tr
+                        key={idx}
+                        className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition-colors"
+                      >
+                        <td className="py-2 px-3 font-semibold text-slate-900 dark:text-slate-100 whitespace-nowrap">
+                          {item.name}
+                        </td>
+                        <td className="py-2 px-3 text-right font-mono">{item.quotes}</td>
+                        <td className="py-2 px-3 text-right font-mono">{formatAmt(item.quoteAmt)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{item.won}</td>
+                        <td className="py-2 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">{formatAmt(item.wonAmt)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-rose-600 dark:text-rose-400 font-semibold">{item.lost}</td>
+                        <td className="py-2 px-3 text-right font-mono text-rose-600 dark:text-rose-400 font-semibold">{formatAmt(item.lostAmt)}</td>
+                        <td className="py-2 px-3 text-right font-mono text-blue-600 dark:text-blue-400 font-semibold">{item.open}</td>
+                        <td className="py-2 px-3 text-right font-mono text-blue-600 dark:text-blue-400 font-semibold">{formatAmt(item.openAmt)}</td>
+                        <td className="py-2 px-3 text-right font-mono font-bold">
+                          {item.winRate}%
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                {marketerTotal && marketerStats.length > 0 && (
+                  <tfoot className="bg-gray-100 dark:bg-slate-800 border-t-2 border-slate-300 dark:border-slate-600 font-bold text-slate-900 dark:text-slate-100">
+                    <tr>
+                      <td className="py-2.5 px-3 font-bold uppercase">{marketerTotal.name}</td>
+                      <td className="py-2.5 px-3 text-right font-mono">{marketerTotal.quotes}</td>
+                      <td className="py-2.5 px-3 text-right font-mono">{formatAmt(marketerTotal.quoteAmt)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">{marketerTotal.won}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-emerald-600 dark:text-emerald-400">{formatAmt(marketerTotal.wonAmt)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-rose-600 dark:text-rose-400">{marketerTotal.lost}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-rose-600 dark:text-rose-400">{formatAmt(marketerTotal.lostAmt)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-blue-600 dark:text-blue-400">{marketerTotal.open}</td>
+                      <td className="py-2.5 px-3 text-right font-mono text-blue-600 dark:text-blue-400">{formatAmt(marketerTotal.openAmt)}</td>
+                      <td className="py-2.5 px-3 text-right font-mono font-black">{marketerTotal.winRate}%</td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
