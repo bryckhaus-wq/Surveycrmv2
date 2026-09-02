@@ -86,6 +86,8 @@ interface OrderDetail {
   createdAt: string;
   surveyType: { id: string; name: string };
   assignedUser: { id: string; name: string; role: string; email: string } | null;
+  marketerId?: string | null;
+  marketer?: { id: string; name: string; role?: string; email?: string } | null;
   quote?: {
     id: string;
     quoteNumber: number;
@@ -298,6 +300,24 @@ export default function OrderDetailPage() {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleAssignMarketer = async (marketerId: string) => {
+    try {
+      const res = await fetch(`/api/orders/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ marketerId: marketerId || null }),
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setOrder(updated);
+        fetchAuditLogs();
+        setSuccessMessage("Marketer assignment successfully updated.");
+      }
+    } catch (err) {
+      console.error("Failed to assign marketer:", err);
     }
   };
 
@@ -927,6 +947,39 @@ export default function OrderDetailPage() {
                 </span>
               </div>
             )}
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+              <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
+                Assigned Marketer (Commission)
+              </label>
+              <select
+                value={order.marketer?.id || order.marketerId || ""}
+                onChange={(e) => handleAssignMarketer(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- No Marketer / Direct --</option>
+                {(users.some((u) => u.role === "MARKETER")
+                  ? users.filter((u) => u.role === "MARKETER")
+                  : users
+                ).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role})
+                  </option>
+                ))}
+              </select>
+
+              {order.marketer && (
+                <div className="mt-2 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300">
+                  <span className="font-semibold block text-slate-900 dark:text-slate-100">{order.marketer.name}</span>
+                  {order.marketer.email && (
+                    <span className="text-slate-500 dark:text-slate-400 text-[11px] block">{order.marketer.email}</span>
+                  )}
+                  <span className="mt-1 inline-block px-2 py-0.5 bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 rounded text-[10px] font-mono">
+                    MARKETER
+                  </span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>

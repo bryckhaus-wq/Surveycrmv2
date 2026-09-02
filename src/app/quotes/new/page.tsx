@@ -79,6 +79,7 @@ export default function NewQuotePage() {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [surveyTypeId, setSurveyTypeId] = useState("");
   const [assignedCsrId, setAssignedCsrId] = useState("");
+  const [marketerId, setMarketerId] = useState("");
   const [price, setPrice] = useState("");
 
   // Scope & Deliverables State
@@ -272,6 +273,7 @@ export default function NewQuotePage() {
           longitude,
           surveyTypeId,
           assignedCsrId: assignedCsrId || null,
+          marketerId: marketerId || null,
           price: parseFloat(price) || 0,
           status: "NEW",
           customScope: customScope.trim() || null,
@@ -619,6 +621,27 @@ export default function NewQuotePage() {
               >
                 <option value="">-- Unassigned --</option>
                 {users.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.name} ({u.role})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Assigned Marketer
+              </label>
+              <select
+                value={marketerId}
+                onChange={(e) => setMarketerId(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">-- No Marketer / Direct --</option>
+                {(users.some((u) => u.role === "MARKETER")
+                  ? users.filter((u) => u.role === "MARKETER")
+                  : users
+                ).map((u) => (
                   <option key={u.id} value={u.id}>
                     {u.name} ({u.role})
                   </option>

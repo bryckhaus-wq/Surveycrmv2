@@ -12,6 +12,7 @@ enum Role {
   DRAFTER
   FIELD_WORKER
   SIGNING_SURVEYOR
+  MARKETER
 }
 
 model Spoke {
@@ -40,6 +41,7 @@ model User {
   password       String?
   role           Role        @default(CSR)
   isActive       Boolean     @default(true)
+  commissionRate Float       @default(10.0)
   address        String?
   latitude       Float?
   longitude      Float?
@@ -47,6 +49,8 @@ model User {
   spoke          Spoke?      @relation(fields: [spokeId], references: [id])
   assignedQuotes Quote[]
   assignedOrders Order[]
+  marketedQuotes Quote[]     @relation("QuoteMarketer")
+  marketedOrders Order[]     @relation("OrderMarketer")
   timesheets     Timesheet[]
   assets         Asset[]
   accounts       Account[]
@@ -98,6 +102,8 @@ model Quote {
   surveyType       SurveyType  @relation(fields: [surveyTypeId], references: [id])
   assignedCsrId    String?
   csr              User?       @relation(fields: [assignedCsrId], references: [id])
+  marketerId       String?
+  marketer         User?       @relation("QuoteMarketer", fields: [marketerId], references: [id])
   spokeId          String?
   spoke            Spoke?      @relation(fields: [spokeId], references: [id])
   price            Decimal     @default(0.00) @db.Decimal(10,2)
@@ -107,6 +113,7 @@ model Quote {
   customScope      String?     @db.Text
   convertedOrder   Order?
   documents        Document[]
+  followUpSentAt   DateTime?
   createdAt        DateTime    @default(now())
 }
 
@@ -126,6 +133,8 @@ model Order {
   surveyType        SurveyType  @relation(fields: [surveyTypeId], references: [id])
   assignedUserId    String?
   assignedUser      User?       @relation(fields: [assignedUserId], references: [id])
+  marketerId        String?
+  marketer          User?       @relation("OrderMarketer", fields: [marketerId], references: [id])
   spokeId           String?
   spoke             Spoke?      @relation(fields: [spokeId], references: [id])
   status            String      @default("FIELD_PENDING") // FIELD_PENDING, DRAFTING, REVIEW, COMPLETED
@@ -246,4 +255,12 @@ model AuditLog {
   userId      String
   user        User     @relation(fields: [userId], references: [id])
   createdAt   DateTime @default(now())
+}
+
+model EmailTemplate {
+  id        String   @id @default(uuid())
+  type      String   @unique // e.g., "QUOTE_FOLLOW_UP"
+  subject   String
+  body      String   @db.Text
+  updatedAt DateTime @updatedAt
 }

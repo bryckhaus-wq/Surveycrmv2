@@ -18,6 +18,7 @@ export const AVAILABLE_ROLES: Role[] = [
   Role.DRAFTER,
   Role.FIELD_WORKER,
   Role.SIGNING_SURVEYOR,
+  Role.MARKETER,
 ];
 
 export function RoleContextProvider({

@@ -40,11 +40,13 @@ export async function GET(
       include: {
         surveyType: true,
         assignedUser: true,
+        marketer: true,
         client: true,
         spoke: true,
         quote: {
           include: {
             csr: true,
+            marketer: true,
             client: true,
           },
         },
@@ -81,6 +83,7 @@ export async function PUT(
       status,
       fieldNotes,
       assignedUserId,
+      marketerId,
       clientName,
       address,
       city,
@@ -104,6 +107,9 @@ export async function PUT(
         ...(assignedUserId !== undefined && {
           assignedUserId: assignedUserId || null,
         }),
+        ...(marketerId !== undefined && {
+          marketerId: marketerId || null,
+        }),
         ...(clientName !== undefined && { clientName }),
         ...(address !== undefined && { address }),
         ...(city !== undefined && { city }),
@@ -117,6 +123,7 @@ export async function PUT(
       include: {
         surveyType: true,
         assignedUser: true,
+        marketer: true,
         client: true,
         spoke: true,
         quote: true,

@@ -10,7 +10,6 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
-  if (!hasAdminAccess(session.user.role)) return new NextResponse("Forbidden", { status: 403 });
 
   try {
     const users = await prisma.user.findMany({
@@ -48,6 +47,7 @@ export async function POST(req: Request) {
       email,
       role,
       isActive,
+      commissionRate,
       spokeId,
       address,
       latitude,
@@ -85,6 +85,7 @@ export async function POST(req: Request) {
         email: email.toLowerCase().trim(),
         role,
         isActive: isActive ?? true,
+        commissionRate: commissionRate !== undefined ? parseFloat(commissionRate) : 10.0,
         spokeId: spokeId || null,
         address: address ? address.trim() : null,
         latitude: latitude ? parseFloat(latitude) : null,

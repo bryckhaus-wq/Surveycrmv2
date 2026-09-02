@@ -59,6 +59,7 @@ export async function POST(
           zip: quote.zip,
           latitude: quote.latitude || null,
           longitude: quote.longitude || null,
+          marketerId: quote.marketerId || null,
           spokeId: quote.spokeId || null,
           surveyTypeId: quote.surveyTypeId,
           status: "FIELD_PENDING",

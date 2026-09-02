@@ -45,6 +45,7 @@ export async function GET(req: Request) {
         include: {
           surveyType: true,
           assignedUser: true,
+          marketer: true,
           client: true,
           spoke: true,
           quote: {
@@ -53,6 +54,7 @@ export async function GET(req: Request) {
               quoteNumber: true,
               price: true,
               csr: true,
+              marketer: true,
               client: true,
               spoke: true,
             },

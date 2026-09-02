@@ -13,6 +13,7 @@ export async function GET(
       include: {
         surveyType: true,
         csr: true,
+        marketer: true,
         client: true,
         documents: {
           orderBy: { uploadedAt: "desc" },
@@ -54,6 +55,7 @@ export async function PUT(
       longitude,
       surveyTypeId,
       assignedCsrId,
+      marketerId,
       price,
       status,
       includedFeatures,
@@ -79,7 +81,8 @@ export async function PUT(
           longitude: longitude !== null ? parseFloat(longitude) : null,
         }),
         ...(surveyTypeId !== undefined && { surveyTypeId }),
-        ...(assignedCsrId !== undefined && { assignedCsrId }),
+        ...(assignedCsrId !== undefined && { assignedCsrId: assignedCsrId || null }),
+        ...(marketerId !== undefined && { marketerId: marketerId || null }),
         ...(price !== undefined && {
           price: parseFloat(price),
         }),
@@ -91,6 +94,7 @@ export async function PUT(
       include: {
         surveyType: true,
         csr: true,
+        marketer: true,
         client: true,
       },
     });

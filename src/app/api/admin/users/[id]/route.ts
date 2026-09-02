@@ -23,6 +23,7 @@ export async function PUT(
       email,
       role,
       isActive,
+      commissionRate,
       spokeId,
       address,
       latitude,
@@ -45,6 +46,9 @@ export async function PUT(
     }
     if (isActive !== undefined) {
       dataToUpdate.isActive = Boolean(isActive);
+    }
+    if (commissionRate !== undefined) {
+      dataToUpdate.commissionRate = parseFloat(commissionRate) || 0;
     }
     if (spokeId !== undefined) {
       dataToUpdate.spokeId = spokeId || null;
@@ -72,6 +76,7 @@ export async function PUT(
         name: true,
         role: true,
         isActive: true,
+        commissionRate: true,
         address: true,
         latitude: true,
         longitude: true,

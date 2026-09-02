@@ -495,6 +495,8 @@ export default function AdminPage() {
         return "bg-purple-100 dark:bg-purple-950/60 text-purple-800 dark:text-purple-300 border-purple-200 dark:border-purple-800";
       case Role.SIGNING_SURVEYOR:
         return "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800";
+      case Role.MARKETER:
+        return "bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border-cyan-200 dark:border-cyan-800";
       default:
         return "bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border-slate-200 dark:border-slate-700";
     }
@@ -514,13 +516,29 @@ export default function AdminPage() {
           </p>
         </div>
 
-        <Link
-          href="/admin/data"
-          className="inline-flex items-center px-4 py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors"
-        >
-          <FileSpreadsheet className="w-4 h-4 mr-2" />
-          Data & Accounting Hub
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/admin/templates"
+            className="inline-flex items-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-xl shadow-sm transition-colors"
+          >
+            <Mail className="w-4 h-4 mr-1.5 text-blue-600 dark:text-blue-400" />
+            Email Templates
+          </Link>
+          <Link
+            href="/admin/commissions"
+            className="inline-flex items-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-xl shadow-sm transition-colors"
+          >
+            <DollarSign className="w-4 h-4 mr-1.5 text-emerald-600 dark:text-emerald-400" />
+            Marketer Commissions
+          </Link>
+          <Link
+            href="/admin/data"
+            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-sm transition-colors"
+          >
+            <FileSpreadsheet className="w-4 h-4 mr-1.5" />
+            Data & Accounting Hub
+          </Link>
+        </div>
       </div>
 
       {/* SECTION 1: REGIONAL SPOKES / BRANCHES */}
@@ -1079,6 +1097,7 @@ export default function AdminPage() {
                     <option value={Role.FIELD_WORKER}>FIELD WORKER (Survey Crew)</option>
                     <option value={Role.DRAFTER}>DRAFTER (CAD Drafter)</option>
                     <option value={Role.SIGNING_SURVEYOR}>SIGNING SURVEYOR (PLS)</option>
+                    <option value={Role.MARKETER}>MARKETER (Sales & Business Dev)</option>
                   </select>
                 </div>
 

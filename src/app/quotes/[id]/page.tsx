@@ -61,6 +61,8 @@ interface QuoteDetail {
   createdAt: string;
   surveyType: { id: string; name: string; defaultPrice: string | number };
   csr: { id: string; name: string; email: string } | null;
+  marketerId?: string | null;
+  marketer: { id: string; name: string; email: string; role?: string } | null;
   convertedOrder: { id: string; orderNumber: string; status: string } | null;
   documents: Array<{
     id: string;
@@ -77,6 +79,7 @@ export default function QuoteDetailPage() {
   const id = params.id as string;
 
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
+  const [users, setUsers] = useState<Array<{ id: string; name: string; role: string; email: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
   const [savingScope, setSavingScope] = useState(false);
@@ -101,8 +104,21 @@ export default function QuoteDetailPage() {
   useEffect(() => {
     if (id) {
       fetchQuote();
+      fetchUsers();
     }
   }, [id]);
+
+  const fetchUsers = async () => {
+    try {
+      const res = await fetch("/api/admin/users");
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch staff users:", err);
+    }
+  };
 
   const fetchQuote = async () => {
     try {
@@ -220,6 +236,21 @@ export default function QuoteDetailPage() {
       }
     } catch (err) {
       console.error("Failed to update status:", err);
+    }
+  };
+
+  const handleAssignMarketer = async (newMarketerId: string) => {
+    try {
+      const res = await fetch(`/api/quotes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ marketerId: newMarketerId || null }),
+      });
+      if (res.ok) {
+        fetchQuote();
+      }
+    } catch (err) {
+      console.error("Failed to assign marketer:", err);
     }
   };
 
@@ -497,6 +528,26 @@ export default function QuoteDetailPage() {
                 <span className="text-slate-700 dark:text-slate-300">
                   {quote.csr ? `${quote.csr.name} (${quote.csr.email})` : <span className="text-slate-400 dark:text-slate-600 italic">Unassigned</span>}
                 </span>
+              </div>
+              <div>
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
+                  Assigned Marketer
+                </span>
+                <select
+                  value={quote.marketer?.id || quote.marketerId || ""}
+                  onChange={(e) => handleAssignMarketer(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- No Marketer / Direct --</option>
+                  {(users.some((u) => u.role === "MARKETER")
+                    ? users.filter((u) => u.role === "MARKETER")
+                    : users
+                  ).map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>

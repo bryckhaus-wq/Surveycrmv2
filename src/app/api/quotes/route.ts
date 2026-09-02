@@ -23,6 +23,7 @@ export async function GET(req: Request) {
       include: {
         surveyType: true,
         csr: true,
+        marketer: true,
         client: true,
         spoke: true,
         convertedOrder: {
@@ -67,6 +68,7 @@ export async function POST(req: Request) {
       longitude,
       surveyTypeId,
       assignedCsrId,
+      marketerId,
       spokeId,
       price,
       status,
@@ -100,6 +102,7 @@ export async function POST(req: Request) {
         longitude: longitude ? parseFloat(longitude) : null,
         surveyTypeId,
         assignedCsrId: assignedCsrId || null,
+        marketerId: marketerId || null,
         spokeId: spokeId || null,
         price: price ? parseFloat(price) : 0.0,
         status: status || "NEW",
@@ -110,6 +113,7 @@ export async function POST(req: Request) {
       include: {
         surveyType: true,
         csr: true,
+        marketer: true,
         client: true,
         spoke: true,
       },
