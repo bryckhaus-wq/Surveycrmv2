@@ -15,6 +15,7 @@ export async function GET(
         csr: true,
         marketer: true,
         client: true,
+        spoke: true,
         documents: {
           orderBy: { uploadedAt: "desc" },
         },
@@ -56,6 +57,7 @@ export async function PUT(
       surveyTypeId,
       assignedCsrId,
       marketerId,
+      spokeId,
       price,
       status,
       includedFeatures,
@@ -83,6 +85,7 @@ export async function PUT(
         ...(surveyTypeId !== undefined && { surveyTypeId }),
         ...(assignedCsrId !== undefined && { assignedCsrId: assignedCsrId || null }),
         ...(marketerId !== undefined && { marketerId: marketerId || null }),
+        ...(spokeId !== undefined && { spokeId: spokeId || null }),
         ...(price !== undefined && {
           price: parseFloat(price),
         }),
@@ -96,6 +99,7 @@ export async function PUT(
         csr: true,
         marketer: true,
         client: true,
+        spoke: true,
       },
     });
 

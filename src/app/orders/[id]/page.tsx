@@ -40,6 +40,7 @@ import {
   Scale,
   PauseCircle,
   Lock,
+  Trash2,
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
 
@@ -203,6 +204,7 @@ export default function OrderDetailPage() {
   const [surveyTypes, setSurveyTypes] = useState<SurveyTypeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
@@ -553,6 +555,34 @@ export default function OrderDetailPage() {
     }
   };
 
+  const handleDeleteDocument = async (docId: string) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+    try {
+      setDeletingDocId(docId);
+      setError(null);
+      const res = await fetch(`/api/documents/${docId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to delete document");
+      }
+      setOrder((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          documents: (prev.documents || []).filter((d) => d.id !== docId),
+        };
+      });
+      setSelectedAttachments((prev) => prev.filter((a) => a.id !== docId));
+      setSuccessMessage("Document deleted successfully.");
+    } catch (err: any) {
+      setError(err.message || "Failed to delete document.");
+    } finally {
+      setDeletingDocId(null);
+    }
+  };
+
   const parseTemplate = (text: string, currentOrder: OrderDetail) => {
     if (!text) return "";
     const clientName =
@@ -787,7 +817,7 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Global Save & Communication Actions */}
+        {/* Global Communication Actions */}
         <div className="flex items-center flex-wrap gap-2">
           {order.client?.phone ? (
             <a
@@ -807,22 +837,25 @@ export default function OrderDetailPage() {
             <Mail className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
             Email Client
           </button>
+        </div>
 
+        {/* Floating Save Button */}
+        <div className="fixed bottom-8 right-8 z-50 shadow-2xl">
           <button
             type="button"
             onClick={() => handleSaveAll()}
             disabled={savingOrder}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
+            className="inline-flex items-center px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl shadow-2xl transition-all hover:scale-105 focus:ring-4 focus:ring-blue-500/30 disabled:opacity-50 cursor-pointer"
           >
             {savingOrder ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                Saving...
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Saving Changes...
               </>
             ) : (
               <>
-                <Save className="w-3.5 h-3.5 mr-1.5" />
-                Save Order Changes
+                <Save className="w-4 h-4 mr-2" />
+                Save Changes
               </>
             )}
           </button>
@@ -1774,7 +1807,7 @@ export default function OrderDetailPage() {
                     key={doc.id}
                     className="py-2.5 flex items-center justify-between text-xs"
                   >
-                    <div className="space-y-0.5 max-w-[70%]">
+                    <div className="space-y-0.5 max-w-[65%]">
                       <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
                         {doc.fileName}
                       </div>
@@ -1785,13 +1818,28 @@ export default function OrderDetailPage() {
                         • {new Date(doc.uploadedAt).toLocaleDateString()}
                       </div>
                     </div>
-                    <a
-                      href={`/api/documents/${doc.id}/download`}
-                      download={doc.fileName}
-                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
-                    >
-                      Download
-                    </a>
+                    <div className="flex items-center space-x-3">
+                      <a
+                        href={`/api/documents/${doc.id}/download`}
+                        download={doc.fileName}
+                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                      >
+                        Download
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteDocument(doc.id)}
+                        disabled={deletingDocId === doc.id}
+                        className="p-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded transition-colors disabled:opacity-50 cursor-pointer"
+                        title="Delete Document"
+                      >
+                        {deletingDocId === doc.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

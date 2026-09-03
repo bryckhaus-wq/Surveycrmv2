@@ -16,6 +16,7 @@ export async function POST(
     const quote = await prisma.quote.findUnique({
       where: { id: params.id },
       include: {
+        client: true,
         convertedOrder: true,
       },
     });
@@ -46,35 +47,53 @@ export async function POST(
       ? await generateNextNumber(targetSpokeId, "ORDER")
       : `ORD-${new Date().getFullYear().toString().slice(-2)}-001`;
 
-    // Transaction to create order and update quote status to WON
-    const [order] = await prisma.$transaction([
-      prisma.order.create({
-        data: {
-          orderNumber,
-          quoteId: quote.id,
-          clientId: quote.clientId || null,
-          clientName: quote.clientName,
-          address: quote.address,
-          city: quote.city,
-          state: quote.state,
-          zip: quote.zip,
-          latitude: quote.latitude || null,
-          longitude: quote.longitude || null,
-          marketerId: quote.marketerId || null,
-          spokeId: quote.spokeId || null,
-          surveyTypeId: quote.surveyTypeId,
-          surveyPrice: Number(quote.price) || 0,
-          status: "FIELD_PENDING",
-        },
-        include: {
-          client: true,
-        },
-      }),
-      prisma.quote.update({
-        where: { id: quote.id },
-        data: { status: "WON" },
-      }),
-    ]);
+    // Ensure the newly updated clientEmail from the Quote is passed to the Client record if linked
+    if (quote.clientId && quote.clientEmail) {
+      try {
+        await prisma.client.update({
+          where: { id: quote.clientId },
+          data: { email: quote.clientEmail },
+        });
+      } catch (clientErr) {
+        console.error("Failed to update client email during conversion:", clientErr);
+      }
+    }
+
+    // 1. Create the new Order
+    const order = await prisma.order.create({
+      data: {
+        orderNumber,
+        quoteId: quote.id,
+        clientId: quote.clientId || null,
+        clientName: quote.clientName,
+        address: quote.address,
+        city: quote.city,
+        state: quote.state,
+        zip: quote.zip,
+        latitude: quote.latitude || null,
+        longitude: quote.longitude || null,
+        marketerId: quote.marketerId || null,
+        spokeId: targetSpokeId || quote.spokeId || null,
+        surveyTypeId: quote.surveyTypeId,
+        surveyPrice: Number(quote.price) || 0,
+        status: "FIELD_PENDING",
+      },
+      include: {
+        client: true,
+      },
+    });
+
+    // 2. Only after order is successfully created, update quote status to WON
+    await prisma.quote.update({
+      where: { id: quote.id },
+      data: { status: "WON" },
+    });
+
+    // 3. Transfer all documents associated with quote to also attach to new orderId
+    await prisma.document.updateMany({
+      where: { quoteId: params.id },
+      data: { orderId: order.id },
+    });
 
     const newOrder: any = {
       ...order,
@@ -88,12 +107,6 @@ export async function POST(
       orderId: newOrder.id,
       clientName: newOrder.client.name,
       price: newOrder.price,
-    });
-
-    // If there were any documents attached to quote, we can link them to order as well
-    await prisma.document.updateMany({
-      where: { quoteId: quote.id },
-      data: { orderId: order.id },
     });
 
     // Audit log order creation from quote
@@ -114,10 +127,10 @@ export async function POST(
       },
       { status: 201 }
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to convert quote to order:", error);
     return NextResponse.json(
-      { error: "Failed to convert quote to order" },
+      { error: error.message || "Failed to convert quote to order" },
       { status: 500 }
     );
   }
