@@ -33,6 +33,7 @@ interface StaffUser {
   email: string;
   role: Role;
   isActive: boolean;
+  commissionRate?: number;
   address?: string | null;
   latitude?: number | null;
   longitude?: number | null;
@@ -131,6 +132,7 @@ export default function AdminPage() {
   const [editUserLongitude, setEditUserLongitude] = useState<number | null>(null);
   const [editUserPassword, setEditUserPassword] = useState("");
   const [editUserIsActive, setEditUserIsActive] = useState(true);
+  const [editUserCommissionRate, setEditUserCommissionRate] = useState<string | number>("10.0");
   const [updatingUser, setUpdatingUser] = useState(false);
   const [editUserError, setEditUserError] = useState<string | null>(null);
 
@@ -345,6 +347,7 @@ export default function AdminPage() {
     setEditUserLongitude(user.longitude ?? null);
     setEditUserPassword("");
     setEditUserIsActive(user.isActive);
+    setEditUserCommissionRate(user.commissionRate !== undefined && user.commissionRate !== null ? user.commissionRate : 10.0);
     setEditUserError(null);
   };
 
@@ -369,6 +372,7 @@ export default function AdminPage() {
         latitude: editUserLatitude,
         longitude: editUserLongitude,
         isActive: editUserIsActive,
+        commissionRate: parseFloat(String(editUserCommissionRate)) || 0,
       };
 
       if (editUserPassword.trim()) {
@@ -798,43 +802,64 @@ export default function AdminPage() {
               </div>
             </form>
 
-            {/* Staff List */}
+            {/* Staff Data Table */}
             <div className="space-y-2">
               <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Current Staff ({users.length})
               </h3>
-              <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                {users.length === 0 ? (
-                  <p className="p-4 text-xs text-slate-500 dark:text-slate-400 italic text-center">No staff members created yet.</p>
-                ) : (
-                  users.map((u) => (
-                    <div key={u.id} className="p-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                      <div>
-                        <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">{u.name}</div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</div>
-                        {u.address && (
-                          <div className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center mt-0.5">
-                            <MapPin className="w-2.5 h-2.5 mr-1 text-emerald-500" />
-                            <span>{u.address}</span>
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${getRoleBadge(u.role)}`}>
-                          {u.role.replace("_", " ")}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEditUser(u)}
-                          className="inline-flex items-center px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
-                        >
-                          <Pencil className="w-3 h-3 mr-1" />
-                          Edit
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-x-auto bg-white dark:bg-slate-900">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/75 dark:bg-slate-800/50 text-slate-600 dark:text-slate-400 font-semibold">
+                      <th className="py-2.5 px-3">Staff Member</th>
+                      <th className="py-2.5 px-3">Role</th>
+                      <th className="py-2.5 px-3 text-right">Commission Rate</th>
+                      <th className="py-2.5 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {users.length === 0 ? (
+                      <tr>
+                        <td colSpan={4} className="p-4 text-xs text-slate-500 dark:text-slate-400 italic text-center">
+                          No staff members created yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      users.map((u) => (
+                        <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="py-2.5 px-3">
+                            <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">{u.name}</div>
+                            <div className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</div>
+                            {u.address && (
+                              <div className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center mt-0.5">
+                                <MapPin className="w-2.5 h-2.5 mr-1 text-emerald-500" />
+                                <span>{u.address}</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold border ${getRoleBadge(u.role)}`}>
+                              {u.role.replace("_", " ")}
+                            </span>
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap text-right font-medium text-slate-800 dark:text-slate-200">
+                            {u.commissionRate !== undefined && u.commissionRate !== null ? `${u.commissionRate}%` : "0%"}
+                          </td>
+                          <td className="py-2.5 px-3 whitespace-nowrap text-right">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenEditUser(u)}
+                              className="inline-flex items-center px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-blue-900/40 text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                            >
+                              <Pencil className="w-3 h-3 mr-1" />
+                              Edit
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -1118,6 +1143,21 @@ export default function AdminPage() {
                     ))}
                   </select>
                 </div>
+              </div>
+
+              {/* Commission Rate (%) */}
+              <div>
+                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                  Commission Rate (%)
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  min="0"
+                  value={editUserCommissionRate}
+                  onChange={(e) => setEditUserCommissionRate(e.target.value)}
+                  className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                />
               </div>
 
               {/* Home Base Address Autocomplete */}

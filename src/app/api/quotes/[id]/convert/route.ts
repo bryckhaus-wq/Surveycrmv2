@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { generateNextNumber } from "@/lib/sequence";
 import { logAction } from "@/lib/audit";
+import { triggerN8nWebhook } from "@/lib/webhook";
 
 export async function POST(
   req: Request,
@@ -64,12 +65,29 @@ export async function POST(
           surveyTypeId: quote.surveyTypeId,
           status: "FIELD_PENDING",
         },
+        include: {
+          client: true,
+        },
       }),
       prisma.quote.update({
         where: { id: quote.id },
         data: { status: "WON" },
       }),
     ]);
+
+    const newOrder: any = {
+      ...order,
+      client: order.client || { name: order.clientName },
+      price: quote.price,
+    };
+
+    // Trigger n8n webhook notification
+    await triggerN8nWebhook("QUOTE_CONVERTED", {
+      quoteId: params.id,
+      orderId: newOrder.id,
+      clientName: newOrder.client.name,
+      price: newOrder.price,
+    });
 
     // If there were any documents attached to quote, we can link them to order as well
     await prisma.document.updateMany({

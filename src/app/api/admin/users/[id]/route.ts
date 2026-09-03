@@ -48,7 +48,8 @@ export async function PUT(
       dataToUpdate.isActive = Boolean(isActive);
     }
     if (commissionRate !== undefined) {
-      dataToUpdate.commissionRate = parseFloat(commissionRate) || 0;
+      const parsedRate = parseFloat(commissionRate);
+      dataToUpdate.commissionRate = !isNaN(parsedRate) ? parsedRate : 0;
     }
     if (spokeId !== undefined) {
       dataToUpdate.spokeId = spokeId || null;

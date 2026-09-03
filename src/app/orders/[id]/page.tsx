@@ -29,6 +29,9 @@ import {
   ExternalLink,
   Loader2,
   History,
+  Mail,
+  MessageSquare,
+  X,
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
 
@@ -65,6 +68,9 @@ interface AuditLogItem {
 interface ClientData {
   id: string;
   name: string;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
   clientType: string;
   defaultInvoiceRules: string | null;
   specialInstructions: string | null;
@@ -88,6 +94,8 @@ interface OrderDetail {
   assignedUser: { id: string; name: string; role: string; email: string } | null;
   marketerId?: string | null;
   marketer?: { id: string; name: string; role?: string; email?: string } | null;
+  spoke?: { id: string; name: string; shortName: string } | null;
+  quoteId?: string | null;
   quote?: {
     id: string;
     quoteNumber: number;
@@ -127,6 +135,14 @@ export default function OrderDetailPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Email Client Modal State
+  const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
+  const [emailSubject, setEmailSubject] = useState("");
+  const [emailBody, setEmailBody] = useState("");
+  const [loadingTemplate, setLoadingTemplate] = useState(false);
+  const [sendingEmail, setSendingEmail] = useState(false);
+  const [emailModalError, setEmailModalError] = useState<string | null>(null);
 
   useEffect(() => {
     if (id) {
@@ -318,6 +334,87 @@ export default function OrderDetailPage() {
       }
     } catch (err) {
       console.error("Failed to assign marketer:", err);
+    }
+  };
+
+  const parseTemplate = (text: string, currentOrder: OrderDetail) => {
+    if (!text) return "";
+    const clientName = currentOrder.client?.name || currentOrder.clientName || "";
+    const clientEmail = currentOrder.client?.email || currentOrder.quote?.client?.email || "";
+    const clientPhone = currentOrder.client?.phone || currentOrder.quote?.client?.phone || "";
+    const orderId = currentOrder.orderNumber || currentOrder.id || "";
+    const propertyAddress = currentOrder.address || "";
+    const surveyType = currentOrder.surveyType?.name || "";
+    const price = currentOrder.quote?.price ? `$${Number(currentOrder.quote.price).toFixed(2)}` : "";
+    const spokeName = currentOrder.spoke?.name || "";
+    const quoteLink = currentOrder.quoteId && typeof window !== "undefined"
+      ? `${window.location.origin}/quotes/${currentOrder.quoteId}`
+      : "";
+
+    return text
+      .replace(/{{clientName}}/g, clientName)
+      .replace(/{{clientEmail}}/g, clientEmail)
+      .replace(/{{clientPhone}}/g, clientPhone)
+      .replace(/{{orderId}}/g, orderId)
+      .replace(/{{propertyAddress}}/g, propertyAddress)
+      .replace(/{{surveyType}}/g, surveyType)
+      .replace(/{{price}}/g, price)
+      .replace(/{{spokeName}}/g, spokeName)
+      .replace(/{{quoteLink}}/g, quoteLink);
+  };
+
+  const handleOpenEmailModal = async () => {
+    if (!order) return;
+    setIsEmailModalOpen(true);
+    setEmailModalError(null);
+    setLoadingTemplate(true);
+    try {
+      const res = await fetch("/api/admin/templates?type=ORDER_MANUAL_UPDATE");
+      if (res.ok) {
+        const data = await res.json();
+        const parsedSubject = parseTemplate(data.subject || "", order);
+        const parsedBody = parseTemplate(data.body || "", order);
+        setEmailSubject(parsedSubject);
+        setEmailBody(parsedBody);
+      } else {
+        setEmailSubject(`Update regarding your survey project for ${order.address} (Order #${order.orderNumber})`);
+        setEmailBody(
+          `Hello ${order.client?.name || order.clientName},\n\nWe are writing to provide you with an update regarding your survey project for ${order.address}.\n\nOrder Details:\n- Order #: ${order.orderNumber}\n- Survey Type: ${order.surveyType?.name}\n- Branch: ${order.spoke?.name || ""}\n\nPlease feel free to reply directly to this email if you have any questions.\n\nBest regards,\nMJS Land Surveying Team`
+        );
+      }
+    } catch (err: any) {
+      console.error("Failed to load email template:", err);
+      setEmailModalError("Failed to load email template. You may compose manually.");
+    } finally {
+      setLoadingTemplate(false);
+    }
+  };
+
+  const handleSendEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order) return;
+    try {
+      setSendingEmail(true);
+      setEmailModalError(null);
+      const res = await fetch(`/api/orders/${id}/email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ subject: emailSubject, body: emailBody }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send email to client.");
+      }
+
+      setIsEmailModalOpen(false);
+      setSuccessMessage(data.message || "Email successfully sent to client.");
+      fetchOrder();
+      fetchAuditLogs();
+    } catch (err: any) {
+      setEmailModalError(err.message || "Failed to send email.");
+    } finally {
+      setSendingEmail(false);
     }
   };
 
@@ -679,6 +776,38 @@ export default function OrderDetailPage() {
                 </div>
               )}
             </div>
+
+            {/* Client Communication Actions (Text & Email Client) */}
+            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              {order.client?.phone ? (
+                <a
+                  href={`sms:${order.client.phone}`}
+                  className="inline-flex items-center px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg transition-colors"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
+                  Text Client
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  disabled
+                  title="No client phone number on file"
+                  className="inline-flex items-center px-3 py-1.5 bg-slate-100 dark:bg-slate-800/40 text-slate-400 text-xs font-medium rounded-lg cursor-not-allowed opacity-60"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
+                  Text Client
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleOpenEmailModal}
+                className="inline-flex items-center px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold rounded-lg transition-colors shadow-2xs"
+              >
+                <Mail className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
+                Email Client
+              </button>
+            </div>
           </div>
 
           {/* Attachments & Field Notes Section */}
@@ -1037,6 +1166,100 @@ export default function OrderDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Email Client Modal */}
+      {isEmailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center space-x-2 text-slate-900 dark:text-slate-100 font-bold text-base">
+                <Mail className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <span>Email Client Update</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsEmailModalOpen(false)}
+                disabled={sendingEmail}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {emailModalError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg text-xs text-rose-800 dark:text-rose-300 flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{emailModalError}</span>
+              </div>
+            )}
+
+            {loadingTemplate ? (
+              <div className="p-8 text-center text-xs text-slate-500">
+                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-600" />
+                Loading email template...
+              </div>
+            ) : (
+              <form onSubmit={handleSendEmail} className="space-y-4">
+                <div>
+                  <span className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Recipient
+                  </span>
+                  <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono">
+                    {order.client?.email || order.clientName}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Subject Line <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    placeholder="Subject line..."
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs font-medium focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Message Body <span className="text-rose-500">*</span>
+                  </label>
+                  <textarea
+                    required
+                    rows={8}
+                    value={emailBody}
+                    onChange={(e) => setEmailBody(e.target.value)}
+                    placeholder="Enter message for client..."
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs font-sans focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setIsEmailModalOpen(false)}
+                    disabled={sendingEmail}
+                    className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sendingEmail}
+                    className="inline-flex items-center px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  >
+                    <Mail className="w-3.5 h-3.5 mr-1.5" />
+                    {sendingEmail ? "Sending Email..." : "Send Email"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

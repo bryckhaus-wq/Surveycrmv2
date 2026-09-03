@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { FIELD_WORKER, hasFinancialAccess } from "@/lib/rbac";
 import { logAction } from "@/lib/audit";
+import { triggerN8nWebhook } from "@/lib/webhook";
 
 export const dynamic = "force-dynamic";
 
@@ -186,6 +187,14 @@ export async function PUT(
           session.user.id
         );
       }
+    }
+
+    if (status === "COMPLETED") {
+      await triggerN8nWebhook("ORDER_COMPLETED", {
+        orderId: params.id,
+        clientName: updatedOrder.client ? updatedOrder.client.name : updatedOrder.clientName,
+        spokeId: updatedOrder.spokeId,
+      });
     }
 
     return NextResponse.json(sanitizeOrder(updatedOrder, session.user.role));
