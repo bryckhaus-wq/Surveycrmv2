@@ -230,6 +230,7 @@ export default function OrderDetailPage() {
     surveyType: "",
     orderedBy: "",
     clientEmail: "",
+    clientPhone: "",
     specialInstructions: "",
     internalDraftingNotes: "",
     isFhaVaLoan: false,
@@ -310,6 +311,7 @@ export default function OrderDetailPage() {
       surveyType: data.surveyTypeCustom || data.surveyType?.name || "",
       orderedBy: data.orderedBy || "",
       clientEmail: data.client?.email || data.quote?.client?.email || "",
+      clientPhone: data.client?.phone || data.quote?.client?.phone || "",
       specialInstructions: data.specialInstructions || "",
       internalDraftingNotes: data.internalDraftingNotes || "",
       isFhaVaLoan: Boolean(data.isFhaVaLoan),
@@ -1224,19 +1226,36 @@ export default function OrderDetailPage() {
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Client Email(s) - comma separated
-                </label>
-                <input
-                  type="text"
-                  value={formData.clientEmail}
-                  onChange={(e) =>
-                    handleInputChange("clientEmail", e.target.value)
-                  }
-                  placeholder="client@example.com, closing@example.com"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Client Email(s) - comma separated
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.clientEmail}
+                    onChange={(e) =>
+                      handleInputChange("clientEmail", e.target.value)
+                    }
+                    placeholder="client@example.com, closing@example.com"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Client Phone
+                  </label>
+                  <input
+                    type="tel"
+                    value={formData.clientPhone}
+                    onChange={(e) =>
+                      handleInputChange("clientPhone", e.target.value)
+                    }
+                    placeholder="(555) 000-0000"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
               </div>
 
               <div>

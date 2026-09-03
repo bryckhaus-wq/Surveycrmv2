@@ -96,6 +96,7 @@ export async function PUT(
       spokeId,
       clientName,
       clientEmail,
+      clientPhone,
       address,
       city,
       state,
@@ -230,11 +231,14 @@ export async function PUT(
       },
     });
 
-    // Update client email if provided
-    if (clientEmail !== undefined && updatedOrder.clientId) {
+    // Update client email and phone if provided
+    if ((clientEmail !== undefined || clientPhone !== undefined) && updatedOrder.clientId) {
       await prisma.client.update({
         where: { id: updatedOrder.clientId },
-        data: { email: clientEmail ? clientEmail.trim() : null },
+        data: {
+          ...(clientEmail !== undefined && { email: clientEmail ? clientEmail.trim() : null }),
+          ...(clientPhone !== undefined && { phone: clientPhone ? clientPhone.trim() : null }),
+        },
       });
     }
 

@@ -171,22 +171,10 @@ export default function QuoteProposalPage() {
             )}
             <div>
               <h1 className="text-2xl font-black tracking-tight uppercase">
-                {settings?.companyName || quote.spoke?.name || "MJS LAND SURVEYING"}
+                {settings?.companyName || "Survey CRM"}
               </h1>
               <div className="text-xs text-black mt-1 space-y-0.5">
-                {settings?.address ? (
-                  <p>{settings.address}</p>
-                ) : (
-                  <>
-                    {quote.spoke?.address && <p>{quote.spoke.address}</p>}
-                    {(quote.spoke?.city || quote.spoke?.state || quote.spoke?.zip) && (
-                      <p>
-                        {[quote.spoke.city, quote.spoke.state].filter(Boolean).join(", ")}{" "}
-                        {quote.spoke.zip || ""}
-                      </p>
-                    )}
-                  </>
-                )}
+                {settings?.address && <p>{settings.address}</p>}
                 {settings?.phone && <p>Tel: {settings.phone}</p>}
                 {settings?.email && <p>Email: {settings.email}</p>}
                 {quote.spoke?.lbNumber && <p>LB #{quote.spoke.lbNumber}</p>}
@@ -309,7 +297,7 @@ export default function QuoteProposalPage() {
             </div>
           </div>
           <p className="italic text-zinc-600 text-[11px]">
-            Thank you for considering {settings?.companyName || quote.spoke?.name || "MJS Land Surveying"} for your surveying needs.
+            Thank you for considering {settings?.companyName || "Survey CRM"} for your surveying needs.
           </p>
         </div>
       </div>

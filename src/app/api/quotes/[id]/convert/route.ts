@@ -90,10 +90,10 @@ export async function POST(
       data: { status: "WON" },
     });
 
-    // 3. Transfer all documents associated with quote to also attach to new orderId
+    // 3. Transfer all documents associated with quote to also attach to new orderId and unlink from quote
     await prisma.document.updateMany({
       where: { quoteId: params.id },
-      data: { orderId: order.id },
+      data: { orderId: order.id, quoteId: null },
     });
 
     const newOrder: any = {

@@ -37,6 +37,7 @@ interface SpokeOption {
   id: string;
   name: string;
   shortName: string;
+  state?: string | null;
   lbNumber?: string | null;
 }
 
@@ -94,6 +95,21 @@ export default function NewQuotePage() {
     fetchOptions();
   }, []);
 
+  // Auto-set spoke when state matches a known Spoke (e.g. "NY" -> NY Spoke)
+  useEffect(() => {
+    if (!state || spokes.length === 0) return;
+    const cleanState = state.trim().toUpperCase();
+    const matchedSpoke = spokes.find(
+      (s) =>
+        s.shortName?.toUpperCase() === cleanState ||
+        s.state?.toUpperCase() === cleanState ||
+        s.name.toUpperCase().includes(cleanState)
+    );
+    if (matchedSpoke) {
+      setSpokeId(matchedSpoke.id);
+    }
+  }, [state, spokes]);
+
   const fetchOptions = async () => {
     try {
       const [clientsRes, spokesRes, stRes, usersRes] = await Promise.all([
@@ -106,9 +122,6 @@ export default function NewQuotePage() {
       if (clientsRes.ok) {
         const cData: ClientOption[] = await clientsRes.json();
         setClients(cData);
-        if (cData.length > 0) {
-          handleSelectClient(cData[0].id, cData);
-        }
       }
 
       if (spokesRes.ok) {
@@ -145,11 +158,14 @@ export default function NewQuotePage() {
     const found = list.find((c) => c.id === id);
     if (found) {
       setSelectedClient(found);
-      setClientName(found.name);
+      setClientName(found.name || "");
       setClientEmail(found.email || "");
       setClientPhone(found.phone || "");
     } else {
       setSelectedClient(null);
+      setClientName("");
+      setClientEmail("");
+      setClientPhone("");
     }
   };
 
@@ -368,6 +384,140 @@ export default function NewQuotePage() {
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Property Location Section (Top of Form) */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+          <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+            <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Property Location</h2>
+          </div>
+
+          {/* Google Places Autocomplete */}
+          <div className="space-y-1">
+            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Address Search & Autocomplete
+            </label>
+            <AddressAutocomplete
+              onPlaceSelected={handlePlaceSelected}
+              onManualChange={(val) => setAddress(val)}
+              placeholder="Start typing an address or property name..."
+            />
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic">
+              Selecting a location or typing an address will update property fields, latitude, and longitude.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Street Address <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                autoComplete="off"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                placeholder="123 Main St"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                City <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                required
+                autoComplete="off"
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                placeholder="City"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  State <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoComplete="off"
+                  value={state}
+                  onChange={(e) => setState(e.target.value)}
+                  placeholder="ST"
+                  maxLength={2}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm uppercase focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Zip <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  autoComplete="off"
+                  value={zip}
+                  onChange={(e) => setZip(e.target.value)}
+                  placeholder="12345"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  County
+                </label>
+                <input
+                  type="text"
+                  autoComplete="off"
+                  value={county}
+                  onChange={(e) => setCounty(e.target.value)}
+                  placeholder="e.g. Orange"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 pt-1">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Latitude (Optional)
+              </label>
+              <input
+                type="number"
+                step="any"
+                autoComplete="off"
+                value={latitude ?? ""}
+                onChange={(e) => setLatitude(e.target.value ? parseFloat(e.target.value) : null)}
+                placeholder="e.g. 29.7604"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Longitude (Optional)
+              </label>
+              <input
+                type="number"
+                step="any"
+                autoComplete="off"
+                value={longitude ?? ""}
+                onChange={(e) => setLongitude(e.target.value ? parseFloat(e.target.value) : null)}
+                placeholder="e.g. -95.3698"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
+              />
+            </div>
+          </div>
+        </div>
+
         {/* Relational Client Selector Section */}
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -441,6 +591,7 @@ export default function NewQuotePage() {
               <input
                 type="text"
                 required
+                autoComplete="off"
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Client Name"
@@ -454,6 +605,7 @@ export default function NewQuotePage() {
               </label>
               <input
                 type="email"
+                autoComplete="off"
                 value={clientEmail}
                 onChange={(e) => setClientEmail(e.target.value)}
                 placeholder="Email Address"
@@ -467,136 +619,10 @@ export default function NewQuotePage() {
               </label>
               <input
                 type="tel"
+                autoComplete="off"
                 value={clientPhone}
                 onChange={(e) => setClientPhone(e.target.value)}
                 placeholder="Phone Number"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Property Location Section */}
-        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
-          <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-            <MapPin className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Property Location</h2>
-          </div>
-
-          {/* Google Places Autocomplete */}
-          <div className="space-y-1">
-            <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-              Address Search & Autocomplete
-            </label>
-            <AddressAutocomplete
-              onPlaceSelected={handlePlaceSelected}
-              onManualChange={(val) => setAddress(val)}
-              placeholder="Start typing an address or property name..."
-            />
-            <p className="text-xs text-slate-500 dark:text-slate-400 italic">
-              Selecting a location or typing an address will update property fields, latitude, and longitude.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
-            <div className="sm:col-span-2">
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                Street Address <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                placeholder="123 Main St"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                City <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                placeholder="City"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  State <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={state}
-                  onChange={(e) => setState(e.target.value)}
-                  placeholder="ST"
-                  maxLength={2}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm uppercase focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  Zip <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={zip}
-                  onChange={(e) => setZip(e.target.value)}
-                  placeholder="12345"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                  County
-                </label>
-                <input
-                  type="text"
-                  value={county}
-                  onChange={(e) => setCounty(e.target.value)}
-                  placeholder="e.g. Orange"
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4 pt-1">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                Latitude (Optional)
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={latitude ?? ""}
-                onChange={(e) => setLatitude(e.target.value ? parseFloat(e.target.value) : null)}
-                placeholder="e.g. 29.7604"
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                Longitude (Optional)
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={longitude ?? ""}
-                onChange={(e) => setLongitude(e.target.value ? parseFloat(e.target.value) : null)}
-                placeholder="e.g. -95.3698"
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
               />
             </div>
