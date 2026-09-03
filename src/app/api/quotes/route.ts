@@ -60,6 +60,7 @@ export async function POST(req: Request) {
       clientName,
       clientEmail,
       clientPhone,
+      orderByName,
       address,
       city,
       state,
@@ -92,9 +93,10 @@ export async function POST(req: Request) {
     const quote = await prisma.quote.create({
       data: {
         clientId: clientId || null,
-        clientName,
-        clientEmail: clientEmail || null,
-        clientPhone: clientPhone || null,
+        clientName: clientName ? clientName.trim() : null,
+        clientEmail: clientEmail ? clientEmail.trim() : null,
+        clientPhone: clientPhone ? clientPhone.trim() : null,
+        orderByName: orderByName ? orderByName.trim() : null,
         address,
         city,
         state,

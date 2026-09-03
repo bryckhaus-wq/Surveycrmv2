@@ -114,7 +114,8 @@ model Quote {
   quoteNumber      Int         @unique @default(autoincrement())
   clientId         String?
   client           Client?     @relation(fields: [clientId], references: [id])
-  clientName       String
+  orderByName      String?
+  clientName       String?
   clientEmail      String?
   clientPhone      String?
   address          String
@@ -172,7 +173,10 @@ model Order {
   quote             Quote?      @relation(fields: [quoteId], references: [id])
   clientId          String?
   client            Client?     @relation(fields: [clientId], references: [id])
-  clientName        String
+  orderByName       String?
+  clientName        String?
+  clientEmail       String?
+  clientPhone       String?
   address           String
   city              String
   state             String

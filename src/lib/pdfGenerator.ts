@@ -15,7 +15,7 @@ export interface SystemSettingsInfo {
 export interface PDFQuoteData {
   id: string;
   quoteNumber: number;
-  clientName: string;
+  clientName?: string | null;
   clientEmail?: string | null;
   clientPhone?: string | null;
   address: string;
@@ -361,7 +361,7 @@ export function generateQuotePDF(quote: PDFQuoteData, settings?: SystemSettingsI
 export interface PDFOrderInvoiceData {
   id: string;
   orderNumber: string;
-  clientName: string;
+  clientName?: string | null;
   orderedBy?: string | null;
   address: string;
   city: string;

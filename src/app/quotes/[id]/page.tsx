@@ -99,6 +99,7 @@ interface QuoteDetail {
   quoteNumber: number;
   clientId?: string | null;
   client?: ClientData | null;
+  orderByName?: string | null;
   clientName: string;
   clientEmail: string | null;
   clientPhone: string | null;
@@ -148,6 +149,7 @@ export default function QuoteDetailPage() {
   const [spokes, setSpokes] = useState<SpokeOption[]>([]);
   const [spokeId, setSpokeId] = useState<string>("");
   const [clientName, setClientName] = useState<string>("");
+  const [orderByName, setOrderByName] = useState<string>("");
   const [clientEmail, setClientEmail] = useState<string>("");
   const [clientPhone, setClientPhone] = useState<string>("");
   const [savingClient, setSavingClient] = useState(false);
@@ -220,10 +222,15 @@ export default function QuoteDetailPage() {
   const fetchCountyLinks = async (countyName: string) => {
     if (!countyName) return;
     try {
-      const res = await fetch(`/api/admin/county-links?county=${encodeURIComponent(countyName)}`);
+      const res = await fetch("/api/admin/county-links");
       if (res.ok) {
-        const data = await res.json();
-        setCountyLinks(data);
+        const data: CountyLinkItem[] = await res.json();
+        if (Array.isArray(data)) {
+          const matches = data.filter(
+            (link) => link.county.trim().toLowerCase() === countyName.trim().toLowerCase()
+          );
+          setCountyLinks(matches);
+        }
       }
     } catch (err) {
       console.error("Failed to fetch county links:", err);
@@ -273,7 +280,10 @@ export default function QuoteDetailPage() {
       if (res.ok) {
         const data: QuoteDetail = await res.json();
         setQuote(data);
+        setClientName(data.clientName || data.client?.name || "");
         setClientEmail(data.clientEmail || data.client?.email || "");
+        setClientPhone(data.clientPhone || data.client?.phone || "");
+        setOrderByName(data.orderByName || "");
         setSpokeId(data.spokeId || data.spoke?.id || "");
         setClientFileNumber(data.clientFileNumber || "");
         setEstimatedDelivery(data.estimatedDelivery || "");
@@ -396,6 +406,7 @@ export default function QuoteDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientName: clientName.trim(),
+          orderByName: orderByName.trim() || null,
           clientEmail: clientEmail.trim() || null,
           clientPhone: clientPhone.trim() || null,
         }),
@@ -905,6 +916,18 @@ export default function QuoteDetailPage() {
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
+                  Ordered By Name
+                </label>
+                <input
+                  type="text"
+                  value={orderByName}
+                  onChange={(e) => setOrderByName(e.target.value)}
+                  placeholder="e.g. Closing Officer / Agent Name"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
                   Client Email(s) - comma separated
                 </label>
                 <input
@@ -1112,26 +1135,32 @@ export default function QuoteDetailPage() {
               )}
 
               {/* County Portals & GIS Links */}
-              {countyLinks.length > 0 && (
+              {quote.county && (
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
                   <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center">
                     <Globe className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
                     County Research Portals ({quote.county})
                   </span>
-                  <div className="flex flex-wrap gap-2">
-                    {countyLinks.map((link) => (
-                      <a
-                        key={link.id}
-                        href={link.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-lg border border-blue-200 dark:border-blue-800 shadow-sm transition-colors"
-                      >
-                        <span>{link.label}</span>
-                        <ExternalLink className="w-3 h-3 ml-1 text-blue-500" />
-                      </a>
-                    ))}
-                  </div>
+                  {countyLinks.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {countyLinks.map((link) => (
+                        <a
+                          key={link.id}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-lg border border-blue-200 dark:border-blue-800 shadow-sm transition-colors"
+                        >
+                          <span>{link.label}</span>
+                          <ExternalLink className="w-3 h-3 ml-1 text-blue-500" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 italic">
+                      No portal links configured for {quote.county} County.
+                    </p>
+                  )}
                 </div>
               )}
             </div>

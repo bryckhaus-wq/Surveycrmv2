@@ -58,6 +58,7 @@ export async function PUT(
       clientName,
       clientEmail,
       clientPhone,
+      orderByName,
       address,
       city,
       state,
@@ -89,32 +90,14 @@ export async function PUT(
       },
     });
 
-    // If client is linked and client details changed, update the Client record
-    if (
-      existingQuote?.clientId &&
-      (clientName !== undefined || clientPhone !== undefined || clientEmail !== undefined)
-    ) {
-      try {
-        await prisma.client.update({
-          where: { id: existingQuote.clientId },
-          data: {
-            ...(clientName !== undefined && { name: clientName ? clientName.trim() : undefined }),
-            ...(clientPhone !== undefined && { phone: clientPhone ? clientPhone.trim() : null }),
-            ...(clientEmail !== undefined && { email: clientEmail ? clientEmail.trim() : null }),
-          },
-        });
-      } catch (clientErr) {
-        console.error("Failed to update related client record:", clientErr);
-      }
-    }
-
     const updated = await prisma.quote.update({
       where: { id: params.id },
       data: {
         ...(clientId !== undefined && { clientId: clientId || null }),
-        ...(clientName !== undefined && { clientName }),
-        ...(clientEmail !== undefined && { clientEmail }),
-        ...(clientPhone !== undefined && { clientPhone }),
+        ...(clientName !== undefined && { clientName: clientName ? clientName.trim() : null }),
+        ...(clientEmail !== undefined && { clientEmail: clientEmail ? clientEmail.trim() : null }),
+        ...(clientPhone !== undefined && { clientPhone: clientPhone ? clientPhone.trim() : null }),
+        ...(orderByName !== undefined && { orderByName: orderByName ? orderByName.trim() : null }),
         ...(address !== undefined && { address }),
         ...(city !== undefined && { city }),
         ...(state !== undefined && { state }),

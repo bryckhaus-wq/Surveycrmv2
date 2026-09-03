@@ -47,25 +47,17 @@ export async function POST(
       ? await generateNextNumber(targetSpokeId, "ORDER")
       : `ORD-${new Date().getFullYear().toString().slice(-2)}-001`;
 
-    // Ensure the newly updated clientEmail from the Quote is passed to the Client record if linked
-    if (quote.clientId && quote.clientEmail) {
-      try {
-        await prisma.client.update({
-          where: { id: quote.clientId },
-          data: { email: quote.clientEmail },
-        });
-      } catch (clientErr) {
-        console.error("Failed to update client email during conversion:", clientErr);
-      }
-    }
-
-    // 1. Create the new Order
+    // 1. Create the new Order with decoupled local snapshot data
     const order = await prisma.order.create({
       data: {
         orderNumber,
         quoteId: quote.id,
         clientId: quote.clientId || null,
+        orderByName: quote.orderByName,
+        orderedBy: quote.orderByName,
         clientName: quote.clientName,
+        clientPhone: quote.clientPhone,
+        clientEmail: quote.clientEmail,
         address: quote.address,
         city: quote.city,
         state: quote.state,

@@ -81,6 +81,7 @@ export default function NewQuotePage() {
   // Form State
   const [clientId, setClientId] = useState("");
   const [clientName, setClientName] = useState("");
+  const [orderByName, setOrderByName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
   const [clientPhone, setClientPhone] = useState("");
   const [spokeId, setSpokeId] = useState("");
@@ -325,6 +326,7 @@ export default function NewQuotePage() {
         body: JSON.stringify({
           clientId: clientId || null,
           clientName,
+          orderByName: orderByName.trim() || null,
           clientEmail,
           clientPhone,
           spokeId: spokeId || null,
@@ -656,7 +658,7 @@ export default function NewQuotePage() {
             {/* Auto-filled client contact preview */}
             <div>
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                Client Name
+                Client Name <span className="text-rose-500">*</span>
               </label>
               <input
                 type="text"
@@ -665,6 +667,20 @@ export default function NewQuotePage() {
                 value={clientName}
                 onChange={(e) => setClientName(e.target.value)}
                 placeholder="Client Name"
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Ordered By Name
+              </label>
+              <input
+                type="text"
+                autoComplete="off"
+                value={orderByName}
+                onChange={(e) => setOrderByName(e.target.value)}
+                placeholder="e.g. Closing Officer / Agent Name"
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none"
               />
             </div>

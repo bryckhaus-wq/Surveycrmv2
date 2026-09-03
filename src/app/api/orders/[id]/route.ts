@@ -97,6 +97,7 @@ export async function PUT(
       clientName,
       clientEmail,
       clientPhone,
+      orderByName,
       address,
       city,
       state,
@@ -164,8 +165,14 @@ export async function PUT(
         ...(spokeId !== undefined && {
           spokeId: spokeId || null,
         }),
-        ...(clientName !== undefined && { clientName }),
-        ...(orderedBy !== undefined && { orderedBy: orderedBy ? orderedBy.trim() : null }),
+        ...(clientName !== undefined && { clientName: clientName ? clientName.trim() : null }),
+        ...(clientEmail !== undefined && { clientEmail: clientEmail ? clientEmail.trim() : null }),
+        ...(clientPhone !== undefined && { clientPhone: clientPhone ? clientPhone.trim() : null }),
+        ...(orderByName !== undefined && { orderByName: orderByName ? orderByName.trim() : null }),
+        ...(orderedBy !== undefined && {
+          orderedBy: orderedBy ? orderedBy.trim() : null,
+          orderByName: orderByName !== undefined ? (orderByName ? orderByName.trim() : null) : (orderedBy ? orderedBy.trim() : null),
+        }),
         ...(address !== undefined && { address }),
         ...(city !== undefined && { city }),
         ...(state !== undefined && { state }),
@@ -230,17 +237,6 @@ export async function PUT(
         documents: true,
       },
     });
-
-    // Update client email and phone if provided
-    if ((clientEmail !== undefined || clientPhone !== undefined) && updatedOrder.clientId) {
-      await prisma.client.update({
-        where: { id: updatedOrder.clientId },
-        data: {
-          ...(clientEmail !== undefined && { email: clientEmail ? clientEmail.trim() : null }),
-          ...(clientPhone !== undefined && { phone: clientPhone ? clientPhone.trim() : null }),
-        },
-      });
-    }
 
     // Record audit events if monitored fields changed
     if (session?.user?.id && existingOrder) {
