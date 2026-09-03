@@ -18,6 +18,8 @@ interface QuoteData {
   county?: string | null;
   price: number | string;
   status: string;
+  clientFileNumber?: string | null;
+  estimatedDelivery?: string | null;
   customScope?: string | null;
   includedFeatures?: any;
   excludedFeatures?: any;
@@ -198,6 +200,16 @@ export default function QuoteProposalPage() {
                     day: "numeric",
                   })}
                 </p>
+                {quote.estimatedDelivery && (
+                  <p>
+                    <span className="font-bold">Estimated Delivery:</span> {quote.estimatedDelivery} business days
+                  </p>
+                )}
+                {quote.clientFileNumber && (
+                  <p>
+                    <span className="font-bold">File / Loan #:</span> {quote.clientFileNumber}
+                  </p>
+                )}
               </div>
             </div>
 

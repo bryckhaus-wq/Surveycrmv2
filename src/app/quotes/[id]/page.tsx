@@ -147,8 +147,10 @@ export default function QuoteDetailPage() {
   const [users, setUsers] = useState<Array<{ id: string; name: string; role: string; email: string }>>([]);
   const [spokes, setSpokes] = useState<SpokeOption[]>([]);
   const [spokeId, setSpokeId] = useState<string>("");
+  const [clientName, setClientName] = useState<string>("");
   const [clientEmail, setClientEmail] = useState<string>("");
-  const [savingEmail, setSavingEmail] = useState(false);
+  const [clientPhone, setClientPhone] = useState<string>("");
+  const [savingClient, setSavingClient] = useState(false);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
@@ -384,27 +386,31 @@ export default function QuoteDetailPage() {
     }
   }, [quote?.address, quote?.state, spokes]);
 
-  const handleSaveClientEmail = async () => {
+  const handleSaveClientDetails = async () => {
     try {
-      setSavingEmail(true);
+      setSavingClient(true);
       setError(null);
       setSuccessMessage(null);
       const res = await fetch(`/api/quotes/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ clientEmail: clientEmail.trim() }),
+        body: JSON.stringify({
+          clientName: clientName.trim(),
+          clientEmail: clientEmail.trim() || null,
+          clientPhone: clientPhone.trim() || null,
+        }),
       });
       if (!res.ok) {
-        throw new Error("Failed to update client email");
+        throw new Error("Failed to update client details");
       }
       const updated = await res.json();
       setQuote(updated);
       fetchAuditLogs();
-      setSuccessMessage("Client email updated successfully.");
+      setSuccessMessage("Client details updated successfully.");
     } catch (err: any) {
-      setError(err.message || "Failed to update client email.");
+      setError(err.message || "Failed to update client details.");
     } finally {
-      setSavingEmail(false);
+      setSavingClient(false);
     }
   };
 
@@ -834,64 +840,75 @@ export default function QuoteDetailPage() {
                 <User className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
                 Client Information
               </h2>
-              {quote.client && (
-                <Link
-                  href={`/clients/${quote.client.id}`}
-                  className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center"
+              <div className="flex items-center space-x-2">
+                {quote.client && (
+                  <Link
+                    href={`/clients/${quote.client.id}`}
+                    className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center mr-2"
+                  >
+                    <Users className="w-3.5 h-3.5 mr-1" />
+                    Linked ({quote.client.clientType})
+                  </Link>
+                )}
+                <button
+                  type="button"
+                  onClick={handleSaveClientDetails}
+                  disabled={savingClient}
+                  className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
                 >
-                  <Users className="w-3.5 h-3.5 mr-1" />
-                  Linked Account ({quote.client.clientType})
-                </Link>
-              )}
+                  <Save className="w-3.5 h-3.5 mr-1" />
+                  {savingClient ? "Saving..." : "Save Client Details"}
+                </button>
+              </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
               <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                  Client Name
-                </span>
-                <span className="text-base font-medium text-slate-900 dark:text-slate-100">{quote.clientName}</span>
+                <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
+                  Client Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={clientName}
+                  onChange={(e) => setClientName(e.target.value)}
+                  placeholder="Client Name"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
+                  Client Email(s) - comma separated
+                </label>
+                <input
+                  type="text"
+                  value={clientEmail}
+                  onChange={(e) => {
+                    setClientEmail(e.target.value);
+                    setEmailTo(e.target.value);
+                  }}
+                  placeholder="client@example.com, closing@example.com"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
+                  Client Phone
+                </label>
+                <input
+                  type="tel"
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="(555) 000-0000"
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
               <div>
                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
-                  Client Email(s) - comma separated
-                </span>
-                <div className="flex items-center space-x-1.5">
-                  <input
-                    type="text"
-                    value={clientEmail}
-                    onChange={(e) => {
-                      setClientEmail(e.target.value);
-                      setEmailTo(e.target.value);
-                    }}
-                    placeholder="client@example.com, closing@example.com"
-                    className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleSaveClientEmail}
-                    disabled={savingEmail}
-                    className="px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
-                    title="Save Email"
-                  >
-                    {savingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                  </button>
-                </div>
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                  Phone Number
-                </span>
-                <span className="text-slate-700 dark:text-slate-300">
-                  {quote.clientPhone || <span className="text-slate-400 dark:text-slate-600 italic">None</span>}
-                </span>
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
                   Assigned CSR
                 </span>
-                <span className="text-slate-700 dark:text-slate-300">
-                  {quote.csr ? `${quote.csr.name} (${quote.csr.email})` : <span className="text-slate-400 dark:text-slate-600 italic">Unassigned</span>}
-                </span>
+                <div className="px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800/80 rounded-lg text-xs text-slate-700 dark:text-slate-300 truncate">
+                  {quote.csr ? `${quote.csr.name} (${quote.csr.email})` : "Unassigned"}
+                </div>
               </div>
               <div>
                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">

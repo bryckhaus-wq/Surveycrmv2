@@ -89,6 +89,25 @@ export async function PUT(
       },
     });
 
+    // If client is linked and client details changed, update the Client record
+    if (
+      existingQuote?.clientId &&
+      (clientName !== undefined || clientPhone !== undefined || clientEmail !== undefined)
+    ) {
+      try {
+        await prisma.client.update({
+          where: { id: existingQuote.clientId },
+          data: {
+            ...(clientName !== undefined && { name: clientName ? clientName.trim() : undefined }),
+            ...(clientPhone !== undefined && { phone: clientPhone ? clientPhone.trim() : null }),
+            ...(clientEmail !== undefined && { email: clientEmail ? clientEmail.trim() : null }),
+          },
+        });
+      } catch (clientErr) {
+        console.error("Failed to update related client record:", clientErr);
+      }
+    }
+
     const updated = await prisma.quote.update({
       where: { id: params.id },
       data: {

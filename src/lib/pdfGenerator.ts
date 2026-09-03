@@ -24,6 +24,9 @@ export interface PDFQuoteData {
   longitude?: number | null;
   price: string | number;
   status: string;
+  clientFileNumber?: string | null;
+  estimatedDelivery?: string | null;
+  closingDate?: string | null;
   customScope?: string | null;
   includedFeatures?: any;
   excludedFeatures?: any;
@@ -118,6 +121,12 @@ export function buildQuotePDFDoc(quote: PDFQuoteData, settings?: SystemSettingsI
   doc.setTextColor(148, 163, 184);
   doc.setFontSize(8);
   doc.text(`Date: ${new Date(quote.createdAt).toLocaleDateString()}`, pageWidth - margin, 28, { align: "right" });
+
+  if (quote.estimatedDelivery) {
+    doc.setFontSize(7.5);
+    doc.setTextColor(203, 213, 225); // Slate 300
+    doc.text(`Est. Delivery: ${quote.estimatedDelivery} business days`, pageWidth - margin, 33, { align: "right" });
+  }
 
   // Section 1: Client & Job Location Cards
   let y = 46;
