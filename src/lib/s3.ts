@@ -34,11 +34,14 @@ export async function getPresignedUploadUrl(
 
 export async function getPresignedDownloadUrl(
   key: string,
-  expiresIn = 3600
+  expiresIn = 3600,
+  fileName?: string
 ): Promise<string> {
+  const cleanFileName = fileName || key.split("/").pop() || "download";
   const command = new GetObjectCommand({
     Bucket: bucketName,
     Key: key,
+    ResponseContentDisposition: `attachment; filename="${cleanFileName}"`,
   });
 
   return getSignedUrl(s3Client, command, { expiresIn });

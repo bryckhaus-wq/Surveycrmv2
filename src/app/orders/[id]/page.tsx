@@ -215,6 +215,9 @@ export default function OrderDetailPage() {
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
   const [emailBody, setEmailBody] = useState("");
+  const [selectedAttachments, setSelectedAttachments] = useState<
+    Array<{ id: string; fileName: string; s3Key?: string; docType?: string }>
+  >([]);
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailModalError, setEmailModalError] = useState<string | null>(null);
@@ -490,6 +493,7 @@ export default function OrderDetailPage() {
     if (!order) return;
     setIsEmailModalOpen(true);
     setEmailModalError(null);
+    setSelectedAttachments([]);
     setLoadingTemplate(true);
     try {
       const res = await fetch("/api/admin/templates?type=ORDER_MANUAL_UPDATE");
@@ -526,7 +530,11 @@ export default function OrderDetailPage() {
       const res = await fetch(`/api/orders/${id}/email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subject: emailSubject, body: emailBody }),
+        body: JSON.stringify({
+          subject: emailSubject,
+          body: emailBody,
+          attachments: selectedAttachments,
+        }),
       });
 
       const data = await res.json();
@@ -1514,9 +1522,8 @@ export default function OrderDetailPage() {
                     </div>
                     <a
                       href={`/api/documents/${doc.id}/download`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                      download={doc.fileName}
+                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
                     >
                       Download
                     </a>
@@ -1700,12 +1707,69 @@ export default function OrderDetailPage() {
                   </label>
                   <textarea
                     required
-                    rows={8}
+                    rows={6}
                     value={emailBody}
                     onChange={(e) => setEmailBody(e.target.value)}
                     placeholder="Enter message for client..."
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs font-sans focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed"
                   />
+                </div>
+
+                {/* Document Attachments Checkbox Section */}
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                    Include Attachments ({order.documents?.length || 0} Available)
+                  </label>
+                  {order.documents && order.documents.length > 0 ? (
+                    <div className="max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50 dark:bg-slate-800/50 p-2 space-y-1">
+                      {order.documents.map((doc) => {
+                        const isSelected = selectedAttachments.some(
+                          (a) => a.id === doc.id
+                        );
+                        return (
+                          <label
+                            key={doc.id}
+                            className="flex items-center space-x-2.5 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded cursor-pointer text-xs"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setSelectedAttachments((prev) => [
+                                    ...prev,
+                                    {
+                                      id: doc.id,
+                                      fileName: doc.fileName,
+                                      s3Key: doc.s3Key,
+                                      docType: doc.docType,
+                                    },
+                                  ]);
+                                } else {
+                                  setSelectedAttachments((prev) =>
+                                    prev.filter((a) => a.id !== doc.id)
+                                  );
+                                }
+                              }}
+                              className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                            />
+                            <div className="flex-1 truncate">
+                              <span className="font-medium text-slate-900 dark:text-slate-100">
+                                {doc.fileName}
+                              </span>
+                              <span className="ml-1.5 text-[10px] text-slate-500 uppercase px-1.5 py-0.2 bg-slate-200 dark:bg-slate-700 rounded font-mono">
+                                {doc.docType}
+                              </span>
+                            </div>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-500 italic py-1">
+                      No documents uploaded to this order yet.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">

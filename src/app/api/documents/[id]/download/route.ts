@@ -18,14 +18,30 @@ export async function GET(
       );
     }
 
-    const downloadUrl = await getPresignedDownloadUrl(document.s3Key);
+    const downloadUrl = await getPresignedDownloadUrl(
+      document.s3Key,
+      3600,
+      document.fileName
+    );
 
-    return NextResponse.json({
-      downloadUrl,
-      fileName: document.fileName,
-      mimeType: document.mimeType,
-      docType: document.docType,
-    });
+    const { searchParams } = new URL(req.url);
+    const format = searchParams.get("format");
+    const acceptHeader = req.headers.get("accept") || "";
+
+    if (
+      format === "json" ||
+      (acceptHeader.includes("application/json") &&
+        !acceptHeader.includes("text/html"))
+    ) {
+      return NextResponse.json({
+        downloadUrl,
+        fileName: document.fileName,
+        mimeType: document.mimeType,
+        docType: document.docType,
+      });
+    }
+
+    return NextResponse.redirect(downloadUrl);
   } catch (error) {
     console.error("Failed to generate download URL:", error);
     return NextResponse.json(

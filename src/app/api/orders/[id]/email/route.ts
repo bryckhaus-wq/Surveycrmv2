@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { logAction } from "@/lib/audit";
+import { getPresignedDownloadUrl } from "@/lib/s3";
 import nodemailer from "nodemailer";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,7 @@ export async function POST(
   }
 
   try {
-    const { subject, body } = await req.json();
+    const { subject, body, attachments = [] } = await req.json();
 
     if (!subject || !body) {
       return NextResponse.json(
@@ -71,11 +72,43 @@ export async function POST(
       auth: user ? { user, pass } : undefined,
     });
 
+    // Resolve presigned URLs for MinIO / S3 attachments
+    const mailAttachments = await Promise.all(
+      (Array.isArray(attachments) ? attachments : []).map(async (doc: any) => {
+        let downloadUrl = doc.url || doc.path;
+        if (!downloadUrl && doc.s3Key) {
+          downloadUrl = await getPresignedDownloadUrl(
+            doc.s3Key,
+            3600,
+            doc.fileName
+          );
+        } else if (!downloadUrl && doc.id) {
+          const dbDoc = await prisma.document.findUnique({
+            where: { id: doc.id },
+          });
+          if (dbDoc) {
+            downloadUrl = await getPresignedDownloadUrl(
+              dbDoc.s3Key,
+              3600,
+              dbDoc.fileName
+            );
+          }
+        }
+        return {
+          filename: doc.fileName || doc.filename || "attachment",
+          path: downloadUrl,
+        };
+      })
+    );
+
+    const validAttachments = mailAttachments.filter((a) => Boolean(a.path));
+
     await transporter.sendMail({
       from: fromAddress,
       to: recipientEmail,
       subject: subject.trim(),
       text: body.trim(),
+      ...(validAttachments.length > 0 && { attachments: validAttachments }),
     });
 
     // Log the audit event
@@ -83,7 +116,11 @@ export async function POST(
       "ORDER",
       params.id,
       "EMAIL_SENT",
-      `Emailed Client: "${subject.trim()}"`,
+      `Emailed Client: "${subject.trim()}"${
+        validAttachments.length > 0
+          ? ` with ${validAttachments.length} attachment(s)`
+          : ""
+      }`,
       session.user.id
     );
 
