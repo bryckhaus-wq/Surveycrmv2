@@ -32,6 +32,12 @@ import {
   Mail,
   MessageSquare,
   X,
+  Ban,
+  Building,
+  DollarSign,
+  Briefcase,
+  Layers,
+  Scale,
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
 
@@ -76,6 +82,13 @@ interface ClientData {
   specialInstructions: string | null;
 }
 
+interface StaffUser {
+  id: string;
+  name: string;
+  role: string;
+  email?: string;
+}
+
 interface OrderDetail {
   id: string;
   orderNumber: string;
@@ -86,14 +99,42 @@ interface OrderDetail {
   city: string;
   state: string;
   zip: string;
-  status: "FIELD_PENDING" | "DRAFTING" | "REVIEW" | "COMPLETED" | string;
+  status: "FIELD_PENDING" | "DRAFTING" | "REVIEW" | "COMPLETED" | "CANCELLED" | string;
   fieldNotes: string | null;
   fieldDueDate?: string | null;
-  createdAt: string;
-  surveyType: { id: string; name: string };
-  assignedUser: { id: string; name: string; role: string; email: string } | null;
+  clientDueDate?: string | null;
+  internalDueDate?: string | null;
+  closingDate?: string | null;
+  scheduledDate?: string | null;
+  completionDate?: string | null;
+  county?: string | null;
+  taxParcelId?: string | null;
+  lot?: string | null;
+  block?: string | null;
+  subdivision?: string | null;
+  surveyType?: { id: string; name: string } | null;
+  surveyTypeCustom?: string | null;
+  specialInstructions?: string | null;
+  isFhaVaLoan?: boolean;
+  crewComments?: string | null;
+  pointsOfInterest?: string | null;
+  surveyPrice?: number;
+  miscAmt?: number;
+  discountAmt?: number;
+  depositPaid?: number;
+  taxRate?: number;
+  researcherId?: string | null;
+  fieldCrewId?: string | null;
+  drafterId?: string | null;
+  checkerId?: string | null;
+  assignedUserId?: string | null;
   marketerId?: string | null;
-  marketer?: { id: string; name: string; role?: string; email?: string } | null;
+  researcher?: StaffUser | null;
+  fieldCrew?: StaffUser | null;
+  drafter?: StaffUser | null;
+  checker?: StaffUser | null;
+  assignedUser?: StaffUser | null;
+  marketer?: StaffUser | null;
   spoke?: { id: string; name: string; shortName: string } | null;
   quoteId?: string | null;
   quote?: {
@@ -109,12 +150,7 @@ interface OrderDetail {
     uploadedAt: string;
     s3Key: string;
   }>;
-}
-
-interface StaffUser {
-  id: string;
-  name: string;
-  role: string;
+  createdAt: string;
 }
 
 export default function OrderDetailPage() {
@@ -127,14 +163,49 @@ export default function OrderDetailPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [users, setUsers] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingNotes, setSavingNotes] = useState(false);
-  const [fieldNotes, setFieldNotes] = useState("");
+  const [savingOrder, setSavingOrder] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Form Edit State
+  const [formData, setFormData] = useState({
+    surveyType: "",
+    specialInstructions: "",
+    isFhaVaLoan: false,
+    clientDueDate: "",
+    internalDueDate: "",
+    closingDate: "",
+    scheduledDate: "",
+    fieldDueDate: "",
+    completionDate: "",
+    address: "",
+    city: "",
+    state: "",
+    zip: "",
+    county: "",
+    taxParcelId: "",
+    lot: "",
+    block: "",
+    subdivision: "",
+    researcherId: "",
+    fieldCrewId: "",
+    drafterId: "",
+    checkerId: "",
+    assignedUserId: "",
+    marketerId: "",
+    surveyPrice: 0,
+    miscAmt: 0,
+    discountAmt: 0,
+    depositPaid: 0,
+    taxRate: 0,
+    pointsOfInterest: "",
+    crewComments: "",
+    fieldNotes: "",
+  });
 
   // Email Client Modal State
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
@@ -143,6 +214,53 @@ export default function OrderDetailPage() {
   const [loadingTemplate, setLoadingTemplate] = useState(false);
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailModalError, setEmailModalError] = useState<string | null>(null);
+
+  const formatDateForInput = (dateStr?: string | null) => {
+    if (!dateStr) return "";
+    try {
+      const d = new Date(dateStr);
+      return isNaN(d.getTime()) ? "" : d.toISOString().split("T")[0];
+    } catch {
+      return "";
+    }
+  };
+
+  const populateFormState = (data: OrderDetail) => {
+    setFormData({
+      surveyType: data.surveyTypeCustom || data.surveyType?.name || "",
+      specialInstructions: data.specialInstructions || "",
+      isFhaVaLoan: Boolean(data.isFhaVaLoan),
+      clientDueDate: formatDateForInput(data.clientDueDate),
+      internalDueDate: formatDateForInput(data.internalDueDate),
+      closingDate: formatDateForInput(data.closingDate),
+      scheduledDate: formatDateForInput(data.scheduledDate),
+      fieldDueDate: formatDateForInput(data.fieldDueDate),
+      completionDate: formatDateForInput(data.completionDate),
+      address: data.address || "",
+      city: data.city || "",
+      state: data.state || "",
+      zip: data.zip || "",
+      county: data.county || "",
+      taxParcelId: data.taxParcelId || "",
+      lot: data.lot || "",
+      block: data.block || "",
+      subdivision: data.subdivision || "",
+      researcherId: data.researcherId || "",
+      fieldCrewId: data.fieldCrewId || "",
+      drafterId: data.drafterId || "",
+      checkerId: data.checkerId || "",
+      assignedUserId: data.assignedUserId || "",
+      marketerId: data.marketerId || "",
+      surveyPrice: data.surveyPrice ?? 0,
+      miscAmt: data.miscAmt ?? 0,
+      discountAmt: data.discountAmt ?? 0,
+      depositPaid: data.depositPaid ?? 0,
+      taxRate: data.taxRate ?? 0,
+      pointsOfInterest: data.pointsOfInterest || "",
+      crewComments: data.crewComments || "",
+      fieldNotes: data.fieldNotes || "",
+    });
+  };
 
   useEffect(() => {
     if (id) {
@@ -160,7 +278,7 @@ export default function OrderDetailPage() {
       if (res.ok) {
         const data: OrderDetail = await res.json();
         setOrder(data);
-        setFieldNotes(data.fieldNotes || "");
+        populateFormState(data);
       } else {
         setError("Failed to load order details.");
       }
@@ -208,53 +326,52 @@ export default function OrderDetailPage() {
     }
   };
 
-  const handleUploadAttachment = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleInputChange = (
+    field: string,
+    value: string | number | boolean
+  ) => {
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+  };
 
+  const handleSaveAll = async (extraPayload?: Record<string, any>) => {
     try {
-      setUploadingAttachment(true);
-      setAttachmentError(null);
+      setSavingOrder(true);
+      setError(null);
+      setSuccessMessage(null);
 
-      // 1. Request presigned upload URL & create Attachment record
-      const presignRes = await fetch(`/api/orders/${id}/attachments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type || "application/octet-stream",
-        }),
-      });
+      const payload = {
+        ...formData,
+        surveyPrice: parseFloat(String(formData.surveyPrice)) || 0,
+        miscAmt: parseFloat(String(formData.miscAmt)) || 0,
+        discountAmt: parseFloat(String(formData.discountAmt)) || 0,
+        depositPaid: parseFloat(String(formData.depositPaid)) || 0,
+        taxRate: parseFloat(String(formData.taxRate)) || 0,
+        ...extraPayload,
+      };
 
-      if (!presignRes.ok) {
-        const errData = await presignRes.json();
-        throw new Error(errData.error || "Failed to initialize upload.");
-      }
-
-      const { uploadUrl } = await presignRes.json();
-
-      // 2. PUT file directly to MinIO / S3
-      const uploadRes = await fetch(uploadUrl, {
+      const res = await fetch(`/api/orders/${id}`, {
         method: "PUT",
-        body: file,
-        headers: {
-          "Content-Type": file.type || "application/octet-stream",
-        },
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
       });
 
-      if (!uploadRes.ok) {
-        throw new Error("Direct upload to storage failed.");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to update order");
       }
 
-      // 3. Reload attachments
-      await fetchAttachments();
-      setSuccessMessage(`Attachment "${file.name}" uploaded successfully.`);
+      const updated = await res.json();
+      setOrder(updated);
+      populateFormState(updated);
+      fetchAuditLogs();
+      setSuccessMessage("Order details saved successfully.");
     } catch (err: any) {
-      console.error(err);
-      setAttachmentError(err.message || "Failed to upload attachment.");
+      setError(err.message || "Failed to save order details.");
     } finally {
-      setUploadingAttachment(false);
-      e.target.value = "";
+      setSavingOrder(false);
     }
   };
 
@@ -271,6 +388,7 @@ export default function OrderDetailPage() {
       if (!res.ok) throw new Error("Failed to update status");
       const updated = await res.json();
       setOrder(updated);
+      populateFormState(updated);
       fetchAuditLogs();
       setSuccessMessage(`Order status updated to ${newStatus.replace("_", " ")}`);
     } catch (err: any) {
@@ -278,78 +396,75 @@ export default function OrderDetailPage() {
     }
   };
 
-  const handleSaveFieldNotes = async () => {
-    try {
-      setSavingNotes(true);
-      setError(null);
-      setSuccessMessage(null);
+  const handleUploadAttachment = async (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
 
-      const res = await fetch(`/api/orders/${id}`, {
-        method: "PUT",
+    try {
+      setUploadingAttachment(true);
+      setAttachmentError(null);
+
+      const presignRes = await fetch(`/api/orders/${id}/attachments`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fieldNotes }),
+        body: JSON.stringify({
+          fileName: file.name,
+          fileType: file.type || "application/octet-stream",
+        }),
       });
 
-      if (!res.ok) throw new Error("Failed to save field notes");
-      const updated = await res.json();
-      setOrder(updated);
-      fetchAuditLogs();
-      setSuccessMessage("Field notes successfully saved.");
+      if (!presignRes.ok) {
+        const errData = await presignRes.json();
+        throw new Error(errData.error || "Failed to initialize upload.");
+      }
+
+      const { uploadUrl } = await presignRes.json();
+
+      const uploadRes = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type || "application/octet-stream",
+        },
+      });
+
+      if (!uploadRes.ok) {
+        throw new Error("Direct upload to storage failed.");
+      }
+
+      await fetchAttachments();
+      setSuccessMessage(`Attachment "${file.name}" uploaded successfully.`);
     } catch (err: any) {
-      setError(err.message || "Failed to save field notes.");
-    } finally {
-      setSavingNotes(false);
-    }
-  };
-
-  const handleAssignUser = async (userId: string) => {
-    try {
-      const res = await fetch(`/api/orders/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assignedUserId: userId || null }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setOrder(updated);
-        fetchAuditLogs();
-      }
-    } catch (err) {
       console.error(err);
-    }
-  };
-
-  const handleAssignMarketer = async (marketerId: string) => {
-    try {
-      const res = await fetch(`/api/orders/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ marketerId: marketerId || null }),
-      });
-      if (res.ok) {
-        const updated = await res.json();
-        setOrder(updated);
-        fetchAuditLogs();
-        setSuccessMessage("Marketer assignment successfully updated.");
-      }
-    } catch (err) {
-      console.error("Failed to assign marketer:", err);
+      setAttachmentError(err.message || "Failed to upload attachment.");
+    } finally {
+      setUploadingAttachment(false);
+      e.target.value = "";
     }
   };
 
   const parseTemplate = (text: string, currentOrder: OrderDetail) => {
     if (!text) return "";
-    const clientName = currentOrder.client?.name || currentOrder.clientName || "";
-    const clientEmail = currentOrder.client?.email || currentOrder.quote?.client?.email || "";
-    const clientPhone = currentOrder.client?.phone || currentOrder.quote?.client?.phone || "";
+    const clientName =
+      currentOrder.client?.name || currentOrder.clientName || "";
+    const clientEmail =
+      currentOrder.client?.email || currentOrder.quote?.client?.email || "";
+    const clientPhone =
+      currentOrder.client?.phone || currentOrder.quote?.client?.phone || "";
     const orderId = currentOrder.orderNumber || currentOrder.id || "";
     const propertyAddress = currentOrder.address || "";
-    const surveyType = currentOrder.surveyType?.name || "";
-    const price = currentOrder.quote?.price ? `$${Number(currentOrder.quote.price).toFixed(2)}` : "";
-    const spokeName = currentOrder.spoke?.name || "";
-    const quoteLink = currentOrder.quoteId && typeof window !== "undefined"
-      ? `${window.location.origin}/quotes/${currentOrder.quoteId}`
+    const surveyType =
+      currentOrder.surveyTypeCustom || currentOrder.surveyType?.name || "";
+    const price = currentOrder.quote?.price
+      ? `$${Number(currentOrder.quote.price).toFixed(2)}`
       : "";
+    const spokeName = currentOrder.spoke?.name || "";
+    const quoteLink =
+      currentOrder.quoteId && typeof window !== "undefined"
+        ? `${window.location.origin}/quotes/${currentOrder.quoteId}`
+        : "";
 
     return text
       .replace(/{{clientName}}/g, clientName)
@@ -377,14 +492,18 @@ export default function OrderDetailPage() {
         setEmailSubject(parsedSubject);
         setEmailBody(parsedBody);
       } else {
-        setEmailSubject(`Update regarding your survey project for ${order.address} (Order #${order.orderNumber})`);
+        setEmailSubject(
+          `Update regarding your survey project for ${order.address} (Order #${order.orderNumber})`
+        );
         setEmailBody(
-          `Hello ${order.client?.name || order.clientName},\n\nWe are writing to provide you with an update regarding your survey project for ${order.address}.\n\nOrder Details:\n- Order #: ${order.orderNumber}\n- Survey Type: ${order.surveyType?.name}\n- Branch: ${order.spoke?.name || ""}\n\nPlease feel free to reply directly to this email if you have any questions.\n\nBest regards,\nMJS Land Surveying Team`
+          `Hello ${order.client?.name || order.clientName},\n\nWe are writing to provide you with an update regarding your survey project for ${order.address}.\n\nOrder Details:\n- Order #: ${order.orderNumber}\n- Survey Type: ${order.surveyTypeCustom || order.surveyType?.name}\n- Branch: ${order.spoke?.name || ""}\n\nPlease feel free to reply directly to this email if you have any questions.\n\nBest regards,\nMJS Land Surveying Team`
         );
       }
     } catch (err: any) {
       console.error("Failed to load email template:", err);
-      setEmailModalError("Failed to load email template. You may compose manually.");
+      setEmailModalError(
+        "Failed to load email template. You may compose manually."
+      );
     } finally {
       setLoadingTemplate(false);
     }
@@ -418,41 +537,25 @@ export default function OrderDetailPage() {
     }
   };
 
-  const handleUpdateDueDate = async (newDueDate: string) => {
-    try {
-      setError(null);
-      setSuccessMessage(null);
-      const res = await fetch(`/api/orders/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fieldDueDate: newDueDate || null }),
-      });
-
-      if (!res.ok) throw new Error("Failed to update field due date");
-      const updated = await res.json();
-      setOrder(updated);
-      fetchAuditLogs();
-      setSuccessMessage("Field due date successfully updated.");
-    } catch (err: any) {
-      setError(err.message || "Failed to update field due date.");
-    }
-  };
-
   if (loading) {
     return (
       <div className="p-12 text-center text-slate-500 dark:text-slate-400">
         <div className="animate-spin inline-block w-8 h-8 border-4 border-current border-t-transparent text-blue-600 rounded-full mb-3" />
-        <p className="text-sm">Loading order details...</p>
+        <p className="text-sm font-medium">Loading order details...</p>
       </div>
     );
   }
 
   if (!order) {
     return (
-      <div className="p-12 text-center text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800">
+      <div className="p-12 text-center text-slate-600 dark:text-slate-300 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 max-w-lg mx-auto">
         <AlertCircle className="w-12 h-12 text-rose-500 mx-auto mb-3" />
-        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Order Not Found</h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">The requested work order could not be located.</p>
+        <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">
+          Order Not Found
+        </h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+          The requested work order could not be located.
+        </p>
         <Link
           href="/orders"
           className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700"
@@ -465,6 +568,14 @@ export default function OrderDetailPage() {
   }
 
   const effectiveClient = order.client || order.quote?.client;
+
+  // Balance Due calculation: (Survey Price + Misc Amt) - (Discount Amt + Deposit Paid)
+  const numericSurveyPrice = Number(formData.surveyPrice) || 0;
+  const numericMiscAmt = Number(formData.miscAmt) || 0;
+  const numericDiscountAmt = Number(formData.discountAmt) || 0;
+  const numericDepositPaid = Number(formData.depositPaid) || 0;
+  const balanceDue =
+    numericSurveyPrice + numericMiscAmt - (numericDiscountAmt + numericDepositPaid);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -486,7 +597,7 @@ export default function OrderDetailPage() {
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
             <FileCheck className="w-3.5 h-3.5 mr-1" />
-            REVIEW
+            SURVEYOR REVIEW
           </span>
         );
       case "COMPLETED":
@@ -494,6 +605,13 @@ export default function OrderDetailPage() {
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
             <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
             COMPLETED
+          </span>
+        );
+      case "CANCELLED":
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+            <Ban className="w-3.5 h-3.5 mr-1" />
+            CANCELLED
           </span>
         );
       default:
@@ -506,13 +624,13 @@ export default function OrderDetailPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6 pb-12">
       {/* Header & Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div className="flex items-center space-x-3">
           <Link
             href="/orders"
-            className="inline-flex items-center text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 shadow-sm transition-colors"
+            className="inline-flex items-center text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:white bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 shadow-sm transition-colors"
           >
             <ArrowLeft className="w-4 h-4 mr-1.5" />
             Back
@@ -527,20 +645,51 @@ export default function OrderDetailPage() {
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Created on {new Date(order.createdAt).toLocaleDateString()}
               {order.quote && ` • Origin Quote #${order.quote.quoteNumber}`}
+              {order.spoke && ` • Branch: ${order.spoke.name}`}
             </p>
           </div>
         </div>
 
-        {/* Global Action / Sign-off */}
-        {role === Role.SIGNING_SURVEYOR && order.status !== "COMPLETED" && (
+        {/* Global Save & Communication Actions */}
+        <div className="flex items-center flex-wrap gap-2">
+          {order.client?.phone ? (
+            <a
+              href={`sms:${order.client.phone}`}
+              className="inline-flex items-center px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
+            >
+              <MessageSquare className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
+              Text Client
+            </a>
+          ) : null}
+
           <button
-            onClick={() => handleUpdateStatus("COMPLETED")}
-            className="inline-flex items-center px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-emerald-500"
+            type="button"
+            onClick={handleOpenEmailModal}
+            className="inline-flex items-center px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold rounded-lg transition-colors"
           >
-            <CheckCircle2 className="w-4 h-4 mr-2" />
-            Mark Completed & Sign Off
+            <Mail className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
+            Email Client
           </button>
-        )}
+
+          <button
+            type="button"
+            onClick={() => handleSaveAll()}
+            disabled={savingOrder}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {savingOrder ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                Saving...
+              </>
+            ) : (
+              <>
+                <Save className="w-3.5 h-3.5 mr-1.5" />
+                Save Order Changes
+              </>
+            )}
+          </button>
+        </div>
       </div>
 
       {/* Alerts */}
@@ -558,276 +707,697 @@ export default function OrderDetailPage() {
       )}
 
       {/* Standing Client Instructions & Protocol Banner (if linked) */}
-      {effectiveClient && (effectiveClient.specialInstructions || (effectiveClient.defaultInvoiceRules && canViewFinancials)) && (
-        <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 rounded-xl p-4 shadow-sm space-y-2">
-          <div className="flex items-center justify-between">
-            <span className="font-bold text-xs text-amber-900 dark:text-amber-200 flex items-center">
-              <AlertTriangle className="w-4 h-4 mr-1.5 text-amber-600 dark:text-amber-400" />
-              Standing Protocols for {effectiveClient.name} ({effectiveClient.clientType})
-            </span>
-            {canViewFinancials && (
-              <Link
-                href={`/clients/${effectiveClient.id}`}
-                className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-              >
-                View Client Profile →
-              </Link>
-            )}
-          </div>
+      {effectiveClient &&
+        (effectiveClient.specialInstructions ||
+          (effectiveClient.defaultInvoiceRules && canViewFinancials)) && (
+          <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700/80 rounded-xl p-4 shadow-sm space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-xs text-amber-900 dark:text-amber-200 flex items-center">
+                <AlertTriangle className="w-4 h-4 mr-1.5 text-amber-600 dark:text-amber-400" />
+                Standing Protocols for {effectiveClient.name} (
+                {effectiveClient.clientType})
+              </span>
+              {canViewFinancials && (
+                <Link
+                  href={`/clients/${effectiveClient.id}`}
+                  className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                >
+                  View Client Profile →
+                </Link>
+              )}
+            </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-amber-950 dark:text-amber-100">
-            {effectiveClient.defaultInvoiceRules && canViewFinancials && (
-              <div className="bg-white/60 dark:bg-slate-900/60 p-2.5 rounded border border-amber-200 dark:border-amber-800/60">
-                <span className="font-bold text-amber-900 dark:text-amber-300 block mb-0.5">
-                  Billing Protocol:
-                </span>
-                {effectiveClient.defaultInvoiceRules}
-              </div>
-            )}
-            {effectiveClient.specialInstructions && (
-              <div className={`bg-white/60 dark:bg-slate-900/60 p-2.5 rounded border border-amber-200 dark:border-amber-800/60 ${!canViewFinancials ? "md:col-span-2" : ""}`}>
-                <span className="font-bold text-amber-900 dark:text-amber-300 block mb-0.5">
-                  Standing Field / Legal Instructions:
-                </span>
-                {effectiveClient.specialInstructions}
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {/* Left 2 Cols: Details & Workflow Action Blocks */}
-        <div className="md:col-span-2 space-y-6">
-          {/* Role-Specific Action Panels */}
-
-          {/* 1. FIELD WORKER PANEL */}
-          {role === Role.FIELD_WORKER && (
-            <div className="bg-amber-50/70 dark:bg-amber-950/30 border-2 border-amber-300 dark:border-amber-700/60 rounded-xl p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-amber-200 dark:border-amber-800/60 pb-3">
-                <div className="flex items-center space-x-2 text-amber-900 dark:text-amber-200 font-bold text-base">
-                  <Compass className="w-5 h-5 text-amber-700 dark:text-amber-400" />
-                  <span>Field Worker Workflow</span>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-amber-950 dark:text-amber-100">
+              {effectiveClient.defaultInvoiceRules && canViewFinancials && (
+                <div className="bg-white/60 dark:bg-slate-900/60 p-2.5 rounded border border-amber-200 dark:border-amber-800/60">
+                  <span className="font-bold text-amber-900 dark:text-amber-300 block mb-0.5">
+                    Billing Protocol:
+                  </span>
+                  {effectiveClient.defaultInvoiceRules}
                 </div>
-                <span className="text-xs bg-amber-200/80 dark:bg-amber-900/60 text-amber-900 dark:text-amber-200 font-semibold px-2 py-0.5 rounded">
-                  Status: {order.status}
-                </span>
+              )}
+              {effectiveClient.specialInstructions && (
+                <div
+                  className={`bg-white/60 dark:bg-slate-900/60 p-2.5 rounded border border-amber-200 dark:border-amber-800/60 ${
+                    !canViewFinancials ? "md:col-span-2" : ""
+                  }`}
+                >
+                  <span className="font-bold text-amber-900 dark:text-amber-300 block mb-0.5">
+                    Standing Field / Legal Instructions:
+                  </span>
+                  {effectiveClient.specialInstructions}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+      {/* 3-Column Grid Layout */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4">
+        {/* ========================================================================= */}
+        {/* COLUMN 1: Property & Legal */}
+        {/* ========================================================================= */}
+        <div className="space-y-4">
+          {/* Card 1A: Job Specifics & Critical Dates */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3 uppercase tracking-wider">
+              <Compass className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+              Job Specifics & Dates
+            </h2>
+
+            <div className="space-y-3">
+              {/* Survey Type */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Survey Type
+                </label>
+                <input
+                  type="text"
+                  value={formData.surveyType}
+                  onChange={(e) =>
+                    handleInputChange("surveyType", e.target.value)
+                  }
+                  placeholder="e.g. Boundary Survey, ALTA/NSPS, Topographic"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-amber-950 dark:text-amber-200 uppercase tracking-wider mb-1">
-                  Field Notes & Observations
+              {/* FHA/VA Loan Checkbox */}
+              <div className="pt-1">
+                <label className="inline-flex items-center space-x-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.isFhaVaLoan}
+                    onChange={(e) =>
+                      handleInputChange("isFhaVaLoan", e.target.checked)
+                    }
+                    className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                  />
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    FHA / VA Loan Survey Required
+                  </span>
+                </label>
+              </div>
+
+              {/* Dates Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Client Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.clientDueDate}
+                    onChange={(e) =>
+                      handleInputChange("clientDueDate", e.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Internal Due Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.internalDueDate}
+                    onChange={(e) =>
+                      handleInputChange("internalDueDate", e.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Closing Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.closingDate}
+                    onChange={(e) =>
+                      handleInputChange("closingDate", e.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Scheduled Field Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.fieldDueDate || formData.scheduledDate}
+                    onChange={(e) => {
+                      handleInputChange("fieldDueDate", e.target.value);
+                      handleInputChange("scheduledDate", e.target.value);
+                    }}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Special Instructions */}
+              <div className="pt-2">
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Special Instructions
                 </label>
                 <textarea
-                  rows={4}
-                  value={fieldNotes}
-                  onChange={(e) => setFieldNotes(e.target.value)}
-                  placeholder="Record monument pins found, property lines, fence encroachments, benchmark elevations..."
-                  className="w-full p-3 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+                  rows={3}
+                  value={formData.specialInstructions}
+                  onChange={(e) =>
+                    handleInputChange("specialInstructions", e.target.value)
+                  }
+                  placeholder="Specific boundary conditions, gate codes, access notes, client requests..."
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-sans text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <div className="mt-2 flex justify-end">
-                  <button
-                    onClick={handleSaveFieldNotes}
-                    disabled={savingNotes}
-                    className="inline-flex items-center px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs rounded-lg transition-colors shadow-sm disabled:opacity-50"
-                  >
-                    <Save className="w-3.5 h-3.5 mr-1.5" />
-                    {savingNotes ? "Saving Notes..." : "Save Field Notes"}
-                  </button>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-amber-200 dark:border-amber-800/60 space-y-3">
-                <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200 uppercase tracking-wider">
-                  Upload Field Sheet & Hand Sketches
-                </h4>
-                <FileUpload
-                  entityId={order.id}
-                  entityType="ORDER"
-                  defaultDocType="FieldSheet"
-                  allowedDocTypes={["FieldSheet"]}
-                  onUploadSuccess={fetchOrder}
-                  buttonLabel="Upload Field Sheet"
-                />
-                {order.status === "FIELD_PENDING" && (
-                  <div className="flex justify-end pt-2">
-                    <button
-                      onClick={() => handleUpdateStatus("DRAFTING")}
-                      className="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
-                    >
-                      Advance to CAD Drafting
-                      <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                    </button>
-                  </div>
-                )}
               </div>
             </div>
-          )}
+          </div>
 
-          {/* 2. DRAFTER PANEL */}
-          {role === Role.DRAFTER && (
-            <div className="bg-purple-50/70 dark:bg-purple-950/30 border-2 border-purple-300 dark:border-purple-700/60 rounded-xl p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-purple-200 dark:border-purple-800/60 pb-3">
-                <div className="flex items-center space-x-2 text-purple-900 dark:text-purple-200 font-bold text-base">
-                  <Clock className="w-5 h-5 text-purple-700 dark:text-purple-400" />
-                  <span>CAD Drafter Workflow</span>
-                </div>
-                <span className="text-xs bg-purple-200/80 dark:bg-purple-900/60 text-purple-900 dark:text-purple-200 font-semibold px-2 py-0.5 rounded">
-                  Status: {order.status}
-                </span>
-              </div>
-
-              <p className="text-xs text-purple-900 dark:text-purple-300">
-                Review the field notes and uploaded field sheets below. Once CAD drawings / survey plats are generated, upload the Final Survey PDF/DWG and submit for Surveyor Review.
-              </p>
-
-              <div className="space-y-3 pt-2">
-                <FileUpload
-                  entityId={order.id}
-                  entityType="ORDER"
-                  defaultDocType="FinalSurvey"
-                  allowedDocTypes={["FinalSurvey"]}
-                  onUploadSuccess={fetchOrder}
-                  buttonLabel="Upload Final Survey Plat (PDF/DWG)"
-                />
-
-                {order.status === "DRAFTING" && (
-                  <div className="flex justify-end pt-2">
-                    <button
-                      onClick={() => handleUpdateStatus("REVIEW")}
-                      className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
-                    >
-                      Submit for Surveyor Review
-                      <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                    </button>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* 3. SIGNING SURVEYOR PANEL */}
-          {role === Role.SIGNING_SURVEYOR && (
-            <div className="bg-blue-50/70 dark:bg-blue-950/30 border-2 border-blue-300 dark:border-blue-700/60 rounded-xl p-5 space-y-4 shadow-sm">
-              <div className="flex items-center justify-between border-b border-blue-200 dark:border-blue-800/60 pb-3">
-                <div className="flex items-center space-x-2 text-blue-900 dark:text-blue-200 font-bold text-base">
-                  <FileCheck className="w-5 h-5 text-blue-700 dark:text-blue-400" />
-                  <span>Signing Surveyor Review</span>
-                </div>
-                <span className="text-xs bg-blue-200/80 dark:bg-blue-900/60 text-blue-900 dark:text-blue-200 font-semibold px-2 py-0.5 rounded">
-                  Status: {order.status}
-                </span>
-              </div>
-
-              <p className="text-xs text-blue-900 dark:text-blue-300">
-                Inspect boundary calculations, legal descriptions, and drafting deliverables before official stamp and seal.
-              </p>
-
-              {order.status !== "COMPLETED" && (
-                <div className="pt-2 flex justify-end">
-                  <button
-                    onClick={() => handleUpdateStatus("COMPLETED")}
-                    className="inline-flex items-center px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
-                  >
-                    <CheckCircle2 className="w-4 h-4 mr-1.5" />
-                    Approve & Complete Order
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Job & Location Information */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+          {/* Card 1B: Property Details */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3 uppercase tracking-wider">
               <MapPin className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
-              Property & Client Details
+              Property Details
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+
+            <div className="space-y-3">
               <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                  Client
-                </span>
-                <span className="text-base font-medium text-slate-900 dark:text-slate-100">{order.clientName}</span>
-              </div>
-              <div>
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                  Survey Type
-                </span>
-                <span className="text-slate-800 dark:text-slate-200 font-medium">{order.surveyType?.name}</span>
-              </div>
-              <div className="sm:col-span-2">
-                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                  Job Address
-                </span>
-                <span className="text-slate-800 dark:text-slate-200">
-                  {order.address}, {order.city}, {order.state} {order.zip}
-                </span>
-              </div>
-              {canViewFinancials && order.quote?.price && (
-                <div>
-                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
-                    Contract / Quote Value
-                  </span>
-                  <span className="text-base font-bold text-emerald-600 dark:text-emerald-400">
-                    ${Number(order.quote.price).toFixed(2)}
-                  </span>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Client Name
+                </label>
+                <div className="px-3 py-2 bg-slate-100 dark:bg-slate-800/80 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100">
+                  {order.clientName}
                 </div>
-              )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Street Address
+                </label>
+                <input
+                  type="text"
+                  value={formData.address}
+                  onChange={(e) => handleInputChange("address", e.target.value)}
+                  placeholder="123 Main Street"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
+                <div className="col-span-1">
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.city}
+                    onChange={(e) => handleInputChange("city", e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.state}
+                    onChange={(e) => handleInputChange("state", e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Zip
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.zip}
+                    onChange={(e) => handleInputChange("zip", e.target.value)}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    County
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.county}
+                    onChange={(e) =>
+                      handleInputChange("county", e.target.value)
+                    }
+                    placeholder="e.g. Orange"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Tax Parcel ID
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.taxParcelId}
+                    onChange={(e) =>
+                      handleInputChange("taxParcelId", e.target.value)
+                    }
+                    placeholder="e.g. 29-22-14-0000-00-001"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 1C: Legal Section */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3 uppercase tracking-wider">
+              <Scale className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+              Legal Description
+            </h2>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Lot
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.lot}
+                    onChange={(e) => handleInputChange("lot", e.target.value)}
+                    placeholder="e.g. 14"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Block
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.block}
+                    onChange={(e) =>
+                      handleInputChange("block", e.target.value)
+                    }
+                    placeholder="e.g. B"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Subdivision / Plat Name
+                </label>
+                <input
+                  type="text"
+                  value={formData.subdivision}
+                  onChange={(e) =>
+                    handleInputChange("subdivision", e.target.value)
+                  }
+                  placeholder="e.g. Whispering Pines Unit 3"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* COLUMN 2: Process & Accounting */}
+        {/* ========================================================================= */}
+        <div className="space-y-4">
+          {/* Card 2A: Status & Workflow Progression */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3 uppercase tracking-wider">
+              <Layers className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+              Status & Workflow
+            </h2>
+
+            <div className="space-y-2">
+              {[
+                {
+                  key: "FIELD_PENDING",
+                  label: "1. Field Pending",
+                  icon: Compass,
+                },
+                { key: "DRAFTING", label: "2. CAD Drafting", icon: Clock },
+                {
+                  key: "REVIEW",
+                  label: "3. Surveyor Review",
+                  icon: FileCheck,
+                },
+                {
+                  key: "COMPLETED",
+                  label: "4. Completed / Signed Off",
+                  icon: CheckCircle2,
+                },
+              ].map((step) => {
+                const isCurrent = order.status === step.key;
+                return (
+                  <button
+                    key={step.key}
+                    type="button"
+                    onClick={() => handleUpdateStatus(step.key)}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-lg text-xs font-semibold transition-all border ${
+                      isCurrent
+                        ? "bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-400/30"
+                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <step.icon className="w-4 h-4" />
+                      <span>{step.label}</span>
+                    </div>
+                    {isCurrent && <CheckCircle className="w-4 h-4" />}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* Client Communication Actions (Text & Email Client) */}
-            <div className="flex flex-wrap items-center gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-              {order.client?.phone ? (
-                <a
-                  href={`sms:${order.client.phone}`}
-                  className="inline-flex items-center px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg transition-colors"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
-                  Text Client
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  disabled
-                  title="No client phone number on file"
-                  className="inline-flex items-center px-3 py-1.5 bg-slate-100 dark:bg-slate-800/40 text-slate-400 text-xs font-medium rounded-lg cursor-not-allowed opacity-60"
-                >
-                  <MessageSquare className="w-3.5 h-3.5 mr-1.5" />
-                  Text Client
-                </button>
-              )}
-
+            {/* Prominent Red Cancel Job Button */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
               <button
                 type="button"
-                onClick={handleOpenEmailModal}
-                className="inline-flex items-center px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold rounded-lg transition-colors shadow-2xs"
+                onClick={() => {
+                  if (
+                    confirm(
+                      "Are you sure you want to cancel this order? This will update status to CANCELLED."
+                    )
+                  ) {
+                    handleUpdateStatus("CANCELLED");
+                  }
+                }}
+                className={`w-full flex items-center justify-center space-x-2 p-2.5 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                  order.status === "CANCELLED"
+                    ? "bg-rose-700 text-white cursor-default ring-2 ring-rose-400"
+                    : "bg-rose-600 hover:bg-rose-700 text-white"
+                }`}
               >
-                <Mail className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
-                Email Client
+                <Ban className="w-4 h-4" />
+                <span>
+                  {order.status === "CANCELLED"
+                    ? "Job is CANCELLED"
+                    : "Cancel Job"}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* Attachments & Field Notes Section */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-5">
+          {/* Card 2B: Staffing & Resource Assignments */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3 uppercase tracking-wider">
+              <Users className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+              Staff Assignments
+            </h2>
+
+            <div className="space-y-3">
+              {/* Researcher */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Researcher
+                </label>
+                <select
+                  value={formData.researcherId}
+                  onChange={(e) =>
+                    handleInputChange("researcherId", e.target.value)
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Unassigned Researcher --</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Field Crew */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Field Crew
+                </label>
+                <select
+                  value={formData.fieldCrewId}
+                  onChange={(e) =>
+                    handleInputChange("fieldCrewId", e.target.value)
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Unassigned Field Crew --</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Drafter */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  CAD Drafter
+                </label>
+                <select
+                  value={formData.drafterId}
+                  onChange={(e) =>
+                    handleInputChange("drafterId", e.target.value)
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Unassigned Drafter --</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Checker / Reviewer */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Checker / Signing Surveyor
+                </label>
+                <select
+                  value={formData.checkerId}
+                  onChange={(e) =>
+                    handleInputChange("checkerId", e.target.value)
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Unassigned Checker --</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 2C: Accounting Section */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3 uppercase tracking-wider">
+              <DollarSign className="w-4 h-4 mr-2 text-emerald-600 dark:text-emerald-400" />
+              Accounting & Pricing
+            </h2>
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Survey Price ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.surveyPrice}
+                    onChange={(e) =>
+                      handleInputChange("surveyPrice", e.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Misc Amt ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.miscAmt}
+                    onChange={(e) =>
+                      handleInputChange("miscAmt", e.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Discount Amt ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.discountAmt}
+                    onChange={(e) =>
+                      handleInputChange("discountAmt", e.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Deposit Paid ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.depositPaid}
+                    onChange={(e) =>
+                      handleInputChange("depositPaid", e.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
+              </div>
+
+              {/* Dynamic Balance Due Banner */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                <div
+                  className={`p-3.5 rounded-xl border flex items-center justify-between ${
+                    balanceDue > 0
+                      ? "bg-rose-50/70 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60"
+                      : "bg-emerald-50/70 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60"
+                  }`}
+                >
+                  <div>
+                    <span className="text-xs font-bold uppercase tracking-wider block text-slate-700 dark:text-slate-300">
+                      Balance Due
+                    </span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      (Price + Misc) - (Discount + Deposit)
+                    </span>
+                  </div>
+
+                  <span
+                    className={`text-xl font-bold font-mono tracking-tight ${
+                      balanceDue > 0
+                        ? "text-rose-600 dark:text-rose-400"
+                        : "text-emerald-600 dark:text-emerald-400"
+                    }`}
+                  >
+                    $
+                    {balanceDue.toLocaleString("en-US", {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* COLUMN 3: Completion & Documents */}
+        {/* ========================================================================= */}
+        <div className="space-y-4">
+          {/* Card 3A: Completion & Field Findings */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3 uppercase tracking-wider">
+              <CheckCircle className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+              Completion & Findings
+            </h2>
+
+            <div className="space-y-3">
+              {/* Completion Date */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Completion Date
+                </label>
+                <input
+                  type="date"
+                  value={formData.completionDate}
+                  onChange={(e) =>
+                    handleInputChange("completionDate", e.target.value)
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Points of Interest */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Points of Interest
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.pointsOfInterest}
+                  onChange={(e) =>
+                    handleInputChange("pointsOfInterest", e.target.value)
+                  }
+                  placeholder="Key monuments, witness trees, benchmarks, elevation datum, encroachments observed..."
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-sans text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Crew Comments */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Crew Comments & Field Observations
+                </label>
+                <textarea
+                  rows={3}
+                  value={formData.crewComments || formData.fieldNotes}
+                  onChange={(e) => {
+                    handleInputChange("crewComments", e.target.value);
+                    handleInputChange("fieldNotes", e.target.value);
+                  }}
+                  placeholder="Field conditions, GPS satellite coverage, site obstacles, pins recovered..."
+                  className="w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-sans text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Card 3B: MinIO / AWS S3 Documents & Uploads */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center">
-                <Paperclip className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
-                Attachments & Field Notes ({attachments.length})
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center uppercase tracking-wider">
+                <FileCheck className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+                Job Documents ({order.documents?.length || 0})
               </h2>
 
-              {/* Upload Attachment Button */}
-              <label className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer transition-colors">
+              <label className="inline-flex items-center px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer transition-colors">
                 {uploadingAttachment ? (
                   <>
-                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
                     Uploading...
                   </>
                 ) : (
                   <>
-                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                    <Upload className="w-3 h-3 mr-1" />
                     Upload File
                   </>
                 )}
@@ -841,98 +1411,29 @@ export default function OrderDetailPage() {
             </div>
 
             {attachmentError && (
-              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg text-xs text-rose-800 dark:text-rose-300 flex items-center space-x-2">
+              <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg text-xs text-rose-800 dark:text-rose-300 flex items-center space-x-2">
                 <AlertCircle className="w-4 h-4 flex-shrink-0" />
                 <span>{attachmentError}</span>
               </div>
             )}
 
-            {/* Field Notes Text Area */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                  Field Observations & Log
-                </label>
-                {role !== Role.FIELD_WORKER && (
-                  <button
-                    onClick={handleSaveFieldNotes}
-                    disabled={savingNotes}
-                    className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:text-blue-700"
-                  >
-                    {savingNotes ? "Saving..." : "Update Notes"}
-                  </button>
-                )}
-              </div>
-              <textarea
-                rows={3}
-                value={fieldNotes}
-                onChange={(e) => setFieldNotes(e.target.value)}
-                placeholder="Record monument pins found, property lines, fence encroachments, benchmark elevations..."
-                className="w-full p-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Uploaded Attachments List */}
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
-              <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
-                Uploaded Files & S3 Artifacts
-              </h3>
-              {attachments.length === 0 ? (
-                <p className="text-xs text-slate-500 dark:text-slate-400 italic py-2">
-                  No attachments uploaded yet. Use the Upload File button above to add field photos, sketches, or CAD drawings.
-                </p>
-              ) : (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-800/40">
-                  {attachments.map((att) => (
-                    <div
-                      key={att.id}
-                      className="p-3 flex items-center justify-between hover:bg-slate-100/60 dark:hover:bg-slate-800/80 transition-colors"
-                    >
-                      <div className="space-y-0.5">
-                        <div className="font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center space-x-1.5">
-                          <Paperclip className="w-3.5 h-3.5 text-blue-500 flex-shrink-0" />
-                          <span>{att.fileName}</span>
-                        </div>
-                        <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                          Uploaded by {att.uploader?.name || "Staff"} on {new Date(att.createdAt).toLocaleDateString()} at {new Date(att.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
-                        </div>
-                      </div>
-
-                      <a
-                        href={att.fileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center space-x-1 px-2.5 py-1 bg-white dark:bg-slate-900 hover:bg-blue-50 dark:hover:bg-blue-950/40 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm transition-colors"
-                      >
-                        <span>View / Download</span>
-                        <ExternalLink className="w-3 h-3 ml-1" />
-                      </a>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Attached Documents with Direct MinIO/S3 FileUpload Component */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-5">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <FileCheck className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
-              Job Documents & Plats ({order.documents?.length || 0})
-            </h2>
-
             {/* Document List */}
             {order.documents && order.documents.length > 0 ? (
-              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-60 overflow-y-auto">
                 {order.documents.map((doc) => (
                   <div
                     key={doc.id}
-                    className="py-2.5 flex items-center justify-between text-sm"
+                    className="py-2.5 flex items-center justify-between text-xs"
                   >
-                    <div>
-                      <div className="font-medium text-slate-900 dark:text-slate-100">{doc.fileName}</div>
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">{doc.docType}</span> • Uploaded {new Date(doc.uploadedAt).toLocaleDateString()}
+                    <div className="space-y-0.5 max-w-[70%]">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {doc.fileName}
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">
+                          {doc.docType}
+                        </span>{" "}
+                        • {new Date(doc.uploadedAt).toLocaleDateString()}
                       </div>
                     </div>
                     <a
@@ -952,163 +1453,58 @@ export default function OrderDetailPage() {
               </p>
             )}
 
-            {/* General FileUpload Component */}
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+            {/* MinIO / AWS S3 FileUpload Component Dropzone */}
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
               <FileUpload
                 entityId={order.id}
                 entityType="ORDER"
                 defaultDocType="FieldSheet"
                 allowedDocTypes={["FieldSheet", "FinalSurvey", "Quote"]}
                 onUploadSuccess={fetchOrder}
-                buttonLabel="Upload file attachment"
+                buttonLabel="Drop file / Upload to Storage"
               />
             </div>
           </div>
-        </div>
 
-        {/* Right Col: Workflow Status Controls & Assignment */}
-        <div className="space-y-6">
-          {/* Status Progression Card */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-3">
-              Workflow Status
-            </h2>
+          {/* Card 3C: Uploaded Attachments & Artifacts */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-3">
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center">
+              <Paperclip className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+              Direct Attachments ({attachments.length})
+            </h3>
 
-            <div className="space-y-2">
-              {[
-                { key: "FIELD_PENDING", label: "1. Field Pending", icon: Compass },
-                { key: "DRAFTING", label: "2. Drafting", icon: Clock },
-                { key: "REVIEW", label: "3. Surveyor Review", icon: FileCheck },
-                { key: "COMPLETED", label: "4. Completed", icon: CheckCircle2 },
-              ].map((step) => {
-                const isCurrent = order.status === step.key;
-                return (
-                  <button
-                    key={step.key}
-                    type="button"
-                    onClick={() => handleUpdateStatus(step.key)}
-                    className={`w-full flex items-center justify-between p-2.5 rounded-lg text-xs font-semibold transition-colors border ${
-                      isCurrent
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm"
-                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
-                    }`}
-                  >
-                    <span>{step.label}</span>
-                    {isCurrent && <CheckCircle className="w-3.5 h-3.5" />}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {/* Field Due Date / Scheduling Card */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center">
-              <Calendar className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
-              Field Due Date
-            </h2>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
-                Target Field Date
-              </label>
-              <input
-                type="date"
-                value={
-                  order.fieldDueDate
-                    ? new Date(order.fieldDueDate).toISOString().split("T")[0]
-                    : ""
-                }
-                onChange={(e) => handleUpdateDueDate(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
-              />
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                Setting this schedules the order on the 14-day production calendar.
+            {attachments.length === 0 ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400 italic py-1">
+                No direct attachments linked yet.
               </p>
-            </div>
-
-            {order.fieldDueDate && (
-              <div className="bg-blue-50 dark:bg-blue-950/40 p-3 rounded-lg border border-blue-200 dark:border-blue-900 text-xs text-blue-900 dark:text-blue-200 flex items-center justify-between">
-                <span className="font-semibold">Scheduled:</span>
-                <span>
-                  {new Date(order.fieldDueDate).toLocaleDateString("en-US", {
-                    weekday: "short",
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
-                </span>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-800/40">
+                {attachments.map((att) => (
+                  <div
+                    key={att.id}
+                    className="p-2.5 flex items-center justify-between text-xs hover:bg-slate-100/60 dark:hover:bg-slate-800/80 transition-colors"
+                  >
+                    <div className="space-y-0.5 truncate max-w-[70%]">
+                      <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
+                        {att.fileName}
+                      </div>
+                      <div className="text-[10px] text-slate-500 dark:text-slate-400">
+                        {new Date(att.createdAt).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <a
+                      href={att.fileUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-[11px] text-blue-600 dark:text-blue-400 font-semibold hover:underline"
+                    >
+                      View
+                      <ExternalLink className="w-3 h-3 ml-0.5" />
+                    </a>
+                  </div>
+                ))}
               </div>
             )}
-          </div>
-
-          {/* Assigned Staff Card */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 border-b border-slate-100 dark:border-slate-800 pb-3 flex items-center">
-              <User className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
-              Assigned Specialist
-            </h2>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
-                Assign Worker
-              </label>
-              <select
-                value={order.assignedUser?.id || ""}
-                onChange={(e) => handleAssignUser(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">-- Unassigned --</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.role})
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {order.assignedUser && (
-              <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300">
-                <span className="font-semibold block text-slate-900 dark:text-slate-100">{order.assignedUser.name}</span>
-                <span className="text-slate-500 dark:text-slate-400">{order.assignedUser.email}</span>
-                <span className="mt-1 inline-block px-2 py-0.5 bg-slate-200 dark:bg-slate-700 rounded text-[10px] font-mono">
-                  {order.assignedUser.role}
-                </span>
-              </div>
-            )}
-
-            <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-              <label className="block text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1.5">
-                Assigned Marketer (Commission)
-              </label>
-              <select
-                value={order.marketer?.id || order.marketerId || ""}
-                onChange={(e) => handleAssignMarketer(e.target.value)}
-                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">-- No Marketer / Direct --</option>
-                {(users.some((u) => u.role === "MARKETER")
-                  ? users.filter((u) => u.role === "MARKETER")
-                  : users
-                ).map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.name} ({u.role})
-                  </option>
-                ))}
-              </select>
-
-              {order.marketer && (
-                <div className="mt-2 bg-slate-50 dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-300">
-                  <span className="font-semibold block text-slate-900 dark:text-slate-100">{order.marketer.name}</span>
-                  {order.marketer.email && (
-                    <span className="text-slate-500 dark:text-slate-400 text-[11px] block">{order.marketer.email}</span>
-                  )}
-                  <span className="mt-1 inline-block px-2 py-0.5 bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 rounded text-[10px] font-mono">
-                    MARKETER
-                  </span>
-                </div>
-              )}
-            </div>
           </div>
         </div>
       </div>
@@ -1127,10 +1523,9 @@ export default function OrderDetailPage() {
             No audit events recorded for this order yet.
           </p>
         ) : (
-          <div className="relative pl-6 space-y-6 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+          <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
             {auditLogs.map((log) => (
               <div key={log.id} className="relative group">
-                {/* Timeline node */}
                 <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-white dark:ring-slate-900" />
 
                 <div className="space-y-1">

@@ -15,6 +15,14 @@ enum Role {
   MARKETER
 }
 
+enum OrderStatus {
+  FIELD_PENDING
+  DRAFTING
+  REVIEW
+  COMPLETED
+  CANCELLED
+}
+
 model Spoke {
   id            String   @id @default(uuid())
   name          String
@@ -51,6 +59,10 @@ model User {
   assignedOrders Order[]
   marketedQuotes Quote[]     @relation("QuoteMarketer")
   marketedOrders Order[]     @relation("OrderMarketer")
+  researchedOrders Order[]   @relation("OrderResearcher")
+  fieldCrewOrders  Order[]   @relation("OrderFieldCrew")
+  draftedOrders    Order[]   @relation("OrderDrafter")
+  checkedOrders    Order[]   @relation("OrderChecker")
   timesheets     Timesheet[]
   assets         Asset[]
   accounts       Account[]
@@ -137,9 +149,48 @@ model Order {
   marketer          User?       @relation("OrderMarketer", fields: [marketerId], references: [id])
   spokeId           String?
   spoke             Spoke?      @relation(fields: [spokeId], references: [id])
-  status            String      @default("FIELD_PENDING") // FIELD_PENDING, DRAFTING, REVIEW, COMPLETED
+  status            OrderStatus @default(FIELD_PENDING)
   fieldDueDate      DateTime?
   fieldNotes        String?     @db.Text
+
+  // Dates
+  clientDueDate     DateTime?
+  internalDueDate   DateTime?
+  closingDate       DateTime?
+  scheduledDate     DateTime?
+  completionDate    DateTime?
+
+  // Property & Legal
+  county            String?
+  taxParcelId       String?
+  lot               String?
+  block             String?
+  subdivision       String?
+
+  // Job Specifics
+  surveyTypeCustom  String?
+  specialInstructions String?   @db.Text
+  isFhaVaLoan       Boolean     @default(false)
+  crewComments      String?     @db.Text
+  pointsOfInterest  String?     @db.Text
+
+  // Accounting
+  surveyPrice       Float       @default(0)
+  miscAmt           Float       @default(0)
+  discountAmt       Float       @default(0)
+  depositPaid       Float       @default(0)
+  taxRate           Float       @default(0)
+
+  // Staffing Relations (Optional IDs)
+  researcherId      String?
+  researcher        User?       @relation("OrderResearcher", fields: [researcherId], references: [id])
+  fieldCrewId       String?
+  fieldCrew         User?       @relation("OrderFieldCrew", fields: [fieldCrewId], references: [id])
+  drafterId         String?
+  drafter           User?       @relation("OrderDrafter", fields: [drafterId], references: [id])
+  checkerId         String?
+  checker           User?       @relation("OrderChecker", fields: [checkerId], references: [id])
+
   latitude          Float?
   longitude         Float?
   documents         Document[]

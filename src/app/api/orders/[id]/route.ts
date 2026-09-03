@@ -44,6 +44,10 @@ export async function GET(
         marketer: true,
         client: true,
         spoke: true,
+        researcher: true,
+        fieldCrew: true,
+        drafter: true,
+        checker: true,
         quote: {
           include: {
             csr: true,
@@ -92,6 +96,32 @@ export async function PUT(
       zip,
       clientId,
       fieldDueDate,
+      clientDueDate,
+      internalDueDate,
+      closingDate,
+      scheduledDate,
+      completionDate,
+      county,
+      taxParcelId,
+      lot,
+      block,
+      subdivision,
+      surveyType,
+      surveyTypeId,
+      surveyTypeCustom,
+      specialInstructions,
+      isFhaVaLoan,
+      crewComments,
+      pointsOfInterest,
+      surveyPrice,
+      miscAmt,
+      discountAmt,
+      depositPaid,
+      taxRate,
+      researcherId,
+      fieldCrewId,
+      drafterId,
+      checkerId,
     } = body;
 
     // Fetch existing order prior to update for audit trail comparison
@@ -120,6 +150,42 @@ export async function PUT(
         ...(fieldDueDate !== undefined && {
           fieldDueDate: fieldDueDate ? new Date(fieldDueDate) : null,
         }),
+        ...(clientDueDate !== undefined && {
+          clientDueDate: clientDueDate ? new Date(clientDueDate) : null,
+        }),
+        ...(internalDueDate !== undefined && {
+          internalDueDate: internalDueDate ? new Date(internalDueDate) : null,
+        }),
+        ...(closingDate !== undefined && {
+          closingDate: closingDate ? new Date(closingDate) : null,
+        }),
+        ...(scheduledDate !== undefined && {
+          scheduledDate: scheduledDate ? new Date(scheduledDate) : null,
+        }),
+        ...(completionDate !== undefined && {
+          completionDate: completionDate ? new Date(completionDate) : null,
+        }),
+        ...(county !== undefined && { county: county ? county.trim() : null }),
+        ...(taxParcelId !== undefined && { taxParcelId: taxParcelId ? taxParcelId.trim() : null }),
+        ...(lot !== undefined && { lot: lot ? lot.trim() : null }),
+        ...(block !== undefined && { block: block ? block.trim() : null }),
+        ...(subdivision !== undefined && { subdivision: subdivision ? subdivision.trim() : null }),
+        ...(surveyTypeId !== undefined && { surveyTypeId }),
+        ...(surveyType !== undefined && { surveyTypeCustom: surveyType ? surveyType.trim() : null }),
+        ...(surveyTypeCustom !== undefined && { surveyTypeCustom: surveyTypeCustom ? surveyTypeCustom.trim() : null }),
+        ...(specialInstructions !== undefined && { specialInstructions: specialInstructions ? specialInstructions.trim() : null }),
+        ...(isFhaVaLoan !== undefined && { isFhaVaLoan: Boolean(isFhaVaLoan) }),
+        ...(crewComments !== undefined && { crewComments: crewComments ? crewComments.trim() : null }),
+        ...(pointsOfInterest !== undefined && { pointsOfInterest: pointsOfInterest ? pointsOfInterest.trim() : null }),
+        ...(surveyPrice !== undefined && { surveyPrice: parseFloat(String(surveyPrice)) || 0 }),
+        ...(miscAmt !== undefined && { miscAmt: parseFloat(String(miscAmt)) || 0 }),
+        ...(discountAmt !== undefined && { discountAmt: parseFloat(String(discountAmt)) || 0 }),
+        ...(depositPaid !== undefined && { depositPaid: parseFloat(String(depositPaid)) || 0 }),
+        ...(taxRate !== undefined && { taxRate: parseFloat(String(taxRate)) || 0 }),
+        ...(researcherId !== undefined && { researcherId: researcherId || null }),
+        ...(fieldCrewId !== undefined && { fieldCrewId: fieldCrewId || null }),
+        ...(drafterId !== undefined && { drafterId: drafterId || null }),
+        ...(checkerId !== undefined && { checkerId: checkerId || null }),
       },
       include: {
         surveyType: true,
@@ -127,6 +193,10 @@ export async function PUT(
         marketer: true,
         client: true,
         spoke: true,
+        researcher: true,
+        fieldCrew: true,
+        drafter: true,
+        checker: true,
         quote: true,
         documents: true,
       },
@@ -189,7 +259,7 @@ export async function PUT(
       }
     }
 
-    if (status === "COMPLETED") {
+    if (status === "COMPLETED" && status !== "CANCELLED") {
       await triggerN8nWebhook("ORDER_COMPLETED", {
         orderId: params.id,
         clientName: updatedOrder.client ? updatedOrder.client.name : updatedOrder.clientName,
