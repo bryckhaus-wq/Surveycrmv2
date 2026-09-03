@@ -278,6 +278,21 @@ export default function OrderDetailPage() {
   const [sendingEmail, setSendingEmail] = useState(false);
   const [emailModalError, setEmailModalError] = useState<string | null>(null);
 
+  // Team Email Modal State
+  const [isTeamEmailModalOpen, setIsTeamEmailModalOpen] = useState(false);
+  const [selectedStaffEmails, setSelectedStaffEmails] = useState<string[]>([]);
+  const [staffList, setStaffList] = useState<
+    Array<{ id: string; name: string; email: string; role?: string }>
+  >([]);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [teamEmailSubject, setTeamEmailSubject] = useState("");
+  const [teamEmailBody, setTeamEmailBody] = useState("");
+  const [selectedTeamAttachments, setSelectedTeamAttachments] = useState<
+    Array<{ id: string; fileName: string; s3Key?: string; docType?: string }>
+  >([]);
+  const [sendingTeamEmail, setSendingTeamEmail] = useState(false);
+  const [teamEmailError, setTeamEmailError] = useState<string | null>(null);
+
   const formatDateForInput = (dateStr?: string | null) => {
     if (!dateStr) return "";
     try {
@@ -569,15 +584,10 @@ export default function OrderDetailPage() {
   const handleDeleteDocument = async (docId: string) => {
     if (!confirm("Are you sure you want to delete this document?")) return;
     try {
-      setDeletingDocId(docId);
-      setError(null);
-      const res = await fetch(`/api/documents/${docId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || "Failed to delete document");
-      }
+      const res = await fetch(`/api/documents/${docId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete");
+
+      // Update local state to remove the file instantly from the UI
       setOrder((prev) => {
         if (!prev) return prev;
         return {
@@ -587,10 +597,9 @@ export default function OrderDetailPage() {
       });
       setSelectedAttachments((prev) => prev.filter((a) => a.id !== docId));
       setSuccessMessage("Document deleted successfully.");
-    } catch (err: any) {
-      setError(err.message || "Failed to delete document.");
-    } finally {
-      setDeletingDocId(null);
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || "Failed to delete document");
     }
   };
 
@@ -694,6 +703,72 @@ export default function OrderDetailPage() {
       setEmailModalError(err.message || "Failed to send email.");
     } finally {
       setSendingEmail(false);
+    }
+  };
+
+  const handleOpenTeamEmailModal = async () => {
+    if (!order) return;
+    setTeamEmailError(null);
+    setTeamEmailSubject(
+      `[TEAM UPDATE] Order #${order.orderNumber} - ${order.address}`
+    );
+    setTeamEmailBody(
+      `Team,\n\nPlease see the updates and attached documents for Order #${order.orderNumber} (${order.address}).\n\nStatus: ${order.status}\nSurvey Type: ${formData.surveyType || order.surveyTypeCustom || order.surveyType?.name || ""}\nBranch: ${order.spoke?.name || ""}\n\nInternal Notes: ${formData.internalDraftingNotes || "None"}\n\nField Notes: ${formData.fieldNotes || "None"}\n\nThanks!`
+    );
+    setSelectedTeamAttachments([]);
+    setSelectedStaffEmails([]);
+    setIsTeamEmailModalOpen(true);
+
+    if (staffList.length === 0) {
+      try {
+        setLoadingStaff(true);
+        const res = await fetch("/api/staff");
+        if (res.ok) {
+          const data = await res.json();
+          setStaffList(data);
+        }
+      } catch (err) {
+        console.error("Failed to load staff list:", err);
+      } finally {
+        setLoadingStaff(false);
+      }
+    }
+  };
+
+  const handleSendTeamEmail = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!order) return;
+    if (selectedStaffEmails.length === 0) {
+      setTeamEmailError("Please select at least one staff member recipient.");
+      return;
+    }
+    try {
+      setSendingTeamEmail(true);
+      setTeamEmailError(null);
+      const res = await fetch(`/api/orders/${id}/team-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          subject: teamEmailSubject,
+          body: teamEmailBody,
+          staffEmails: selectedStaffEmails,
+          attachments: selectedTeamAttachments,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send team email.");
+      }
+
+      setIsTeamEmailModalOpen(false);
+      setSuccessMessage(data.message || "Team email sent successfully.");
+      fetchOrder();
+      fetchAuditLogs();
+    } catch (err: any) {
+      setTeamEmailError(err.message || "Failed to send team email.");
+    } finally {
+      setSendingTeamEmail(false);
     }
   };
 
@@ -843,10 +918,19 @@ export default function OrderDetailPage() {
           <button
             type="button"
             onClick={handleOpenEmailModal}
-            className="inline-flex items-center px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold rounded-lg transition-colors"
+            className="inline-flex items-center px-3 py-2 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-900/60 text-blue-600 dark:text-blue-400 border border-blue-200 dark:border-blue-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
           >
             <Mail className="w-3.5 h-3.5 mr-1.5 text-blue-600 dark:text-blue-400" />
             Email Client
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenTeamEmailModal}
+            className="inline-flex items-center px-3 py-2 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/50 dark:hover:bg-purple-900/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-800 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+          >
+            <Users className="w-3.5 h-3.5 mr-1.5 text-purple-600 dark:text-purple-400" />
+            Email Team
           </button>
         </div>
 
@@ -1142,15 +1226,15 @@ export default function OrderDetailPage() {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Client Email
+                  Client Email(s) - comma separated
                 </label>
                 <input
-                  type="email"
+                  type="text"
                   value={formData.clientEmail}
                   onChange={(e) =>
                     handleInputChange("clientEmail", e.target.value)
                   }
-                  placeholder="client@example.com"
+                  placeholder="client@example.com, closing@example.com"
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -1829,7 +1913,7 @@ export default function OrderDetailPage() {
                         • {new Date(doc.uploadedAt).toLocaleDateString()}
                       </div>
                     </div>
-                    <div className="flex items-center space-x-3">
+                    <div className="flex items-center space-x-2">
                       <a
                         href={`/api/documents/${doc.id}/download`}
                         download={doc.fileName}
@@ -1837,18 +1921,16 @@ export default function OrderDetailPage() {
                       >
                         Download
                       </a>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteDocument(doc.id)}
-                        disabled={deletingDocId === doc.id}
-                        className="p-1 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/50 rounded transition-colors disabled:opacity-50 cursor-pointer"
-                        title="Delete Document"
+                      <button 
+                        type="button" 
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleDeleteDocument(doc.id);
+                        }} 
+                        className="ml-4 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm font-bold flex items-center gap-1 cursor-pointer"
                       >
-                        {deletingDocId === doc.id ? (
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="w-3.5 h-3.5" />
-                        )}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        Delete
                       </button>
                     </div>
                   </div>
@@ -2169,6 +2251,227 @@ export default function OrderDetailPage() {
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Team Email Modal */}
+      {isTeamEmailModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl max-w-xl w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center space-x-2 text-slate-900 dark:text-slate-100 font-bold text-base">
+                <Users className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                <span>Internal Team Email</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsTeamEmailModalOpen(false)}
+                disabled={sendingTeamEmail}
+                className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {teamEmailError && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg text-xs text-rose-800 dark:text-rose-300 flex items-center space-x-2">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                <span>{teamEmailError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleSendTeamEmail} className="space-y-4">
+              {/* Staff selection checkboxes */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                    Select Staff Recipients ({selectedStaffEmails.length} Selected) <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="flex items-center space-x-2 text-[11px]">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSelectedStaffEmails(
+                          staffList.map((s) => s.email).filter(Boolean)
+                        )
+                      }
+                      className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                    >
+                      Select All
+                    </button>
+                    <span>•</span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedStaffEmails([])}
+                      className="text-slate-500 hover:underline cursor-pointer"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+
+                {loadingStaff ? (
+                  <div className="p-4 text-center text-xs text-slate-500">
+                    <Loader2 className="w-4 h-4 animate-spin mx-auto mb-1 text-purple-600" />
+                    Loading staff directory...
+                  </div>
+                ) : staffList.length > 0 ? (
+                  <div className="max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50 dark:bg-slate-800/50 p-2 space-y-1">
+                    {staffList.map((member) => {
+                      const isChecked = selectedStaffEmails.includes(member.email);
+                      return (
+                        <label
+                          key={member.id}
+                          className="flex items-center space-x-2.5 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded cursor-pointer text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedStaffEmails((prev) => [
+                                  ...prev,
+                                  member.email,
+                                ]);
+                              } else {
+                                setSelectedStaffEmails((prev) =>
+                                  prev.filter((em) => em !== member.email)
+                                );
+                              }
+                            }}
+                            className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
+                          />
+                          <div className="flex-1 flex items-center justify-between min-w-0">
+                            <span className="font-medium text-slate-900 dark:text-slate-100 truncate">
+                              {member.name}
+                            </span>
+                            <div className="flex items-center space-x-1.5 ml-2">
+                              {member.role && (
+                                <span className="text-[10px] text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/60 px-1.5 py-0.5 rounded font-semibold border border-purple-200 dark:border-purple-800/50">
+                                  {member.role}
+                                </span>
+                              )}
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                {member.email}
+                              </span>
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic py-1">
+                    No staff members found.
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Subject Line <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={teamEmailSubject}
+                  onChange={(e) => setTeamEmailSubject(e.target.value)}
+                  placeholder="Subject line..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs font-medium focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Message Body <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  required
+                  rows={6}
+                  value={teamEmailBody}
+                  onChange={(e) => setTeamEmailBody(e.target.value)}
+                  placeholder="Enter message for team members..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs font-sans focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-purple-500 leading-relaxed"
+                />
+              </div>
+
+              {/* Document Attachments Checkbox Section */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Include Attachments ({order.documents?.length || 0} Available)
+                </label>
+                {order.documents && order.documents.length > 0 ? (
+                  <div className="max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50 dark:bg-slate-800/50 p-2 space-y-1">
+                    {order.documents.map((doc) => {
+                      const isSelected = selectedTeamAttachments.some(
+                        (a) => a.id === doc.id
+                      );
+                      return (
+                        <label
+                          key={doc.id}
+                          className="flex items-center space-x-2.5 p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700/60 rounded cursor-pointer text-xs"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedTeamAttachments((prev) => [
+                                  ...prev,
+                                  {
+                                    id: doc.id,
+                                    fileName: doc.fileName,
+                                    s3Key: doc.s3Key,
+                                    docType: doc.docType,
+                                  },
+                                ]);
+                              } else {
+                                setSelectedTeamAttachments((prev) =>
+                                  prev.filter((a) => a.id !== doc.id)
+                                );
+                              }
+                            }}
+                            className="w-4 h-4 text-purple-600 rounded border-slate-300 focus:ring-purple-500 cursor-pointer"
+                          />
+                          <div className="flex-1 truncate">
+                            <span className="font-medium text-slate-900 dark:text-slate-100">
+                              {doc.fileName}
+                            </span>
+                            <span className="ml-1.5 text-[10px] text-slate-500 uppercase px-1.5 py-0.5 bg-slate-200 dark:bg-slate-700 rounded font-mono">
+                              {doc.docType}
+                            </span>
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-500 italic py-1">
+                    No documents uploaded to this order yet.
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => setIsTeamEmailModalOpen(false)}
+                  disabled={sendingTeamEmail}
+                  className="px-3 py-1.5 text-xs font-semibold text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={sendingTeamEmail}
+                  className="inline-flex items-center px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-purple-500 disabled:opacity-50 cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5 mr-1.5" />
+                  {sendingTeamEmail ? "Sending Team Email..." : "Send Team Email"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

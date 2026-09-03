@@ -1,52 +1,46 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getPresignedDownloadUrl } from "@/lib/s3";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { db } from "@/lib/db";
+
+const s3 = new S3Client({
+  region: "us-east-1",
+  endpoint: process.env.MINIO_ENDPOINT || process.env.S3_ENDPOINT || "http://127.0.0.1:9000",
+  credentials: {
+    accessKeyId: (process.env.MINIO_ACCESS_KEY || process.env.S3_ACCESS_KEY_ID || "minioadmin")!,
+    secretAccessKey: (process.env.MINIO_SECRET_KEY || process.env.S3_SECRET_ACCESS_KEY || "minioadmin")!,
+  },
+  forcePathStyle: true, // Crucial for MinIO
+});
 
 export async function GET(
-  req: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const document = await prisma.document.findUnique({
-      where: { id: params.id },
+    const document = await db.document.findUnique({ where: { id: params.id } });
+    if (!document) return new NextResponse("Not Found", { status: 404 });
+
+    const key = document.s3Key || (document as any).key;
+    const command = new GetObjectCommand({
+      Bucket: process.env.MINIO_BUCKET_NAME || process.env.S3_BUCKET_NAME || "mjs-documents",
+      Key: key,
     });
 
-    if (!document) {
-      return NextResponse.json(
-        { error: "Document not found" },
-        { status: 404 }
-      );
+    const s3Response = await s3.send(command);
+    const fileBytes = await s3Response.Body?.transformToByteArray();
+
+    if (!fileBytes) {
+      return new NextResponse("File content not found", { status: 404 });
     }
 
-    const downloadUrl = await getPresignedDownloadUrl(
-      document.s3Key,
-      3600,
-      document.fileName
-    );
-
-    const { searchParams } = new URL(req.url);
-    const format = searchParams.get("format");
-    const acceptHeader = req.headers.get("accept") || "";
-
-    if (
-      format === "json" ||
-      (acceptHeader.includes("application/json") &&
-        !acceptHeader.includes("text/html"))
-    ) {
-      return NextResponse.json({
-        downloadUrl,
-        fileName: document.fileName,
-        mimeType: document.mimeType,
-        docType: document.docType,
-      });
-    }
-
-    return NextResponse.redirect(downloadUrl);
+    return new NextResponse(Buffer.from(fileBytes), {
+      headers: {
+        "Content-Type": s3Response.ContentType || document.mimeType || "application/octet-stream",
+        "Content-Disposition": `attachment; filename="${document.fileName}"`,
+      },
+    });
   } catch (error) {
-    console.error("Failed to generate download URL:", error);
-    return NextResponse.json(
-      { error: "Failed to get download URL" },
-      { status: 500 }
-    );
+    console.error("[DOWNLOAD_ERROR]", error);
+    return new NextResponse("Internal Error", { status: 500 });
   }
 }

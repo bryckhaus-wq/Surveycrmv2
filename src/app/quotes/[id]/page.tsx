@@ -710,17 +710,17 @@ export default function QuoteDetailPage() {
               </div>
               <div>
                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
-                  Client Email
+                  Client Email(s) - comma separated
                 </span>
                 <div className="flex items-center space-x-1.5">
                   <input
-                    type="email"
+                    type="text"
                     value={clientEmail}
                     onChange={(e) => {
                       setClientEmail(e.target.value);
                       setEmailTo(e.target.value);
                     }}
-                    placeholder="client@example.com"
+                    placeholder="client@example.com, closing@example.com"
                     className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <button

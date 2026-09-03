@@ -18,7 +18,7 @@ export async function POST(
   }
 
   try {
-    const { subject, body, attachments = [] } = await req.json();
+    const { subject, body, staffEmails = [], attachments = [] } = await req.json();
 
     if (!subject || !body) {
       return NextResponse.json(
@@ -27,47 +27,31 @@ export async function POST(
       );
     }
 
+    const emailList = Array.isArray(staffEmails)
+      ? staffEmails
+      : typeof staffEmails === "string"
+      ? staffEmails.split(",")
+      : [];
+
+    const sanitizedList = emailList
+      .map((e: any) => String(e).trim())
+      .filter(Boolean);
+
+    if (sanitizedList.length === 0) {
+      return NextResponse.json(
+        { error: "At least one team member recipient email is required" },
+        { status: 400 }
+      );
+    }
+
     const order = await prisma.order.findUnique({
       where: { id: params.id },
-      include: {
-        client: true,
-        quote: {
-          include: {
-            client: true,
-          },
-        },
-      },
     });
 
     if (!order) {
       return NextResponse.json(
         { error: "Order not found" },
         { status: 404 }
-      );
-    }
-
-    const rawRecipientEmail =
-      (order as any).client?.email ||
-      (order as any).quote?.client?.email ||
-      (order as any).quote?.clientEmail;
-
-    if (!rawRecipientEmail) {
-      return NextResponse.json(
-        { error: `Client "${order.clientName}" does not have an email address on file.` },
-        { status: 400 }
-      );
-    }
-
-    const sanitizedEmails = rawRecipientEmail
-      .split(",")
-      .map((e: string) => e.trim())
-      .filter(Boolean)
-      .join(", ");
-
-    if (!sanitizedEmails) {
-      return NextResponse.json(
-        { error: `Client "${order.clientName}" does not have a valid email address.` },
-        { status: 400 }
       );
     }
 
@@ -115,21 +99,22 @@ export async function POST(
     );
 
     const validAttachments = mailAttachments.filter((a) => Boolean(a.path));
+    const recipientString = sanitizedList.join(", ");
 
     await transporter.sendMail({
       from: fromAddress,
-      to: sanitizedEmails,
+      to: sanitizedList,
       subject: subject.trim(),
       text: body.trim(),
       ...(validAttachments.length > 0 && { attachments: validAttachments }),
     });
 
-    // Record email communication history in EmailLog
+    // Write record to EmailLog table
     await prisma.emailLog.create({
       data: {
         subject: subject.trim(),
         body: body.trim(),
-        sentTo: sanitizedEmails,
+        sentTo: recipientString,
         orderId: params.id,
       },
     });
@@ -139,7 +124,7 @@ export async function POST(
       "ORDER",
       params.id,
       "EMAIL_SENT",
-      `Emailed Client: "${subject.trim()}"${
+      `Emailed Team (${sanitizedList.length} recipients): "${subject.trim()}"${
         validAttachments.length > 0
           ? ` with ${validAttachments.length} attachment(s)`
           : ""
@@ -149,12 +134,12 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: `Email successfully sent to ${sanitizedEmails}`,
+      message: `Team email successfully sent to ${recipientString}`,
     });
   } catch (error: any) {
-    console.error("Failed to send order email to client:", error);
+    console.error("Failed to send team email:", error);
     return NextResponse.json(
-      { error: error?.message || "Failed to send email via SMTP" },
+      { error: error?.message || "Failed to send team email via SMTP" },
       { status: 500 }
     );
   }

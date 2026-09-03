@@ -24,6 +24,19 @@ export async function POST(
       );
     }
 
+    const sanitizedEmails = String(toEmail)
+      .split(",")
+      .map((e: string) => e.trim())
+      .filter(Boolean)
+      .join(", ");
+
+    if (!sanitizedEmails) {
+      return NextResponse.json(
+        { error: "A valid recipient email address is required" },
+        { status: 400 }
+      );
+    }
+
     const port = parseInt(process.env.SMTP_PORT || "587", 10);
     const host = process.env.SMTP_HOST || "smtp.example.com";
     const user = process.env.SMTP_USER || "";
@@ -43,7 +56,7 @@ export async function POST(
 
     await transporter.sendMail({
       from: fromAddress,
-      to: toEmail,
+      to: sanitizedEmails,
       subject: emailSubject,
       text: emailBody,
       attachments: [
@@ -60,14 +73,14 @@ export async function POST(
       data: {
         subject: emailSubject,
         body: emailBody,
-        sentTo: toEmail,
+        sentTo: sanitizedEmails,
         quoteId: params.id,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: `Proposal successfully sent to ${toEmail}`,
+      message: `Proposal successfully sent to ${sanitizedEmails}`,
     });
   } catch (error: any) {
     console.error("Failed to send quote proposal email:", error);
