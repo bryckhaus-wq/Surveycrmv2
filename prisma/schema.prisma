@@ -175,11 +175,13 @@ model Order {
   pointsOfInterest  String?     @db.Text
 
   // Accounting
-  surveyPrice       Float       @default(0)
-  miscAmt           Float       @default(0)
-  discountAmt       Float       @default(0)
-  depositPaid       Float       @default(0)
-  taxRate           Float       @default(0)
+  surveyPrice          Float       @default(0)
+  miscAmt              Float       @default(0)
+  miscAmtDescription   String?
+  discountAmt          Float       @default(0)
+  depositPaid          Float       @default(0)
+  finalPaymentReceived Float       @default(0)
+  taxRate              Float       @default(0)
 
   // Staffing Relations (Optional IDs)
   researcherId      String?

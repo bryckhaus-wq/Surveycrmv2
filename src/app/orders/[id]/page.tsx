@@ -120,8 +120,10 @@ interface OrderDetail {
   pointsOfInterest?: string | null;
   surveyPrice?: number;
   miscAmt?: number;
+  miscAmtDescription?: string | null;
   discountAmt?: number;
   depositPaid?: number;
+  finalPaymentReceived?: number;
   taxRate?: number;
   researcherId?: string | null;
   fieldCrewId?: string | null;
@@ -199,8 +201,10 @@ export default function OrderDetailPage() {
     marketerId: "",
     surveyPrice: 0,
     miscAmt: 0,
+    miscAmtDescription: "",
     discountAmt: 0,
     depositPaid: 0,
+    finalPaymentReceived: 0,
     taxRate: 0,
     pointsOfInterest: "",
     crewComments: "",
@@ -253,8 +257,10 @@ export default function OrderDetailPage() {
       marketerId: data.marketerId || "",
       surveyPrice: data.surveyPrice ?? 0,
       miscAmt: data.miscAmt ?? 0,
+      miscAmtDescription: data.miscAmtDescription || "",
       discountAmt: data.discountAmt ?? 0,
       depositPaid: data.depositPaid ?? 0,
+      finalPaymentReceived: data.finalPaymentReceived ?? 0,
       taxRate: data.taxRate ?? 0,
       pointsOfInterest: data.pointsOfInterest || "",
       crewComments: data.crewComments || "",
@@ -346,8 +352,10 @@ export default function OrderDetailPage() {
         ...formData,
         surveyPrice: parseFloat(String(formData.surveyPrice)) || 0,
         miscAmt: parseFloat(String(formData.miscAmt)) || 0,
+        miscAmtDescription: formData.miscAmtDescription ? formData.miscAmtDescription.trim() : null,
         discountAmt: parseFloat(String(formData.discountAmt)) || 0,
         depositPaid: parseFloat(String(formData.depositPaid)) || 0,
+        finalPaymentReceived: parseFloat(String(formData.finalPaymentReceived)) || 0,
         taxRate: parseFloat(String(formData.taxRate)) || 0,
         ...extraPayload,
       };
@@ -569,13 +577,16 @@ export default function OrderDetailPage() {
 
   const effectiveClient = order.client || order.quote?.client;
 
-  // Balance Due calculation: (Survey Price + Misc Amt) - (Discount Amt + Deposit Paid)
+  // Balance Due calculation: (Survey Price + Misc Amt) - (Discount Amt + Deposit Paid + Final Payment Received)
   const numericSurveyPrice = Number(formData.surveyPrice) || 0;
   const numericMiscAmt = Number(formData.miscAmt) || 0;
   const numericDiscountAmt = Number(formData.discountAmt) || 0;
   const numericDepositPaid = Number(formData.depositPaid) || 0;
+  const numericFinalPaymentReceived = Number(formData.finalPaymentReceived) || 0;
   const balanceDue =
-    numericSurveyPrice + numericMiscAmt - (numericDiscountAmt + numericDepositPaid);
+    numericSurveyPrice +
+    numericMiscAmt -
+    (numericDiscountAmt + numericDepositPaid + numericFinalPaymentReceived);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -1207,6 +1218,27 @@ export default function OrderDetailPage() {
                   ))}
                 </select>
               </div>
+
+              {/* Marketer */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Marketer
+                </label>
+                <select
+                  value={formData.marketerId}
+                  onChange={(e) =>
+                    handleInputChange("marketerId", e.target.value)
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- No Marketer / Direct --</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
           </div>
 
@@ -1250,10 +1282,26 @@ export default function OrderDetailPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              {/* Misc Amt Description */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Misc Amt Description
+                </label>
+                <input
+                  type="text"
+                  value={formData.miscAmtDescription}
+                  onChange={(e) =>
+                    handleInputChange("miscAmtDescription", e.target.value)
+                  }
+                  placeholder="e.g. Tree Location Surcharge, Rush Expedite Fee"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                    Discount Amt ($)
+                    Discount ($)
                   </label>
                   <input
                     type="number"
@@ -1280,6 +1328,21 @@ export default function OrderDetailPage() {
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                   />
                 </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Final Paid ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.finalPaymentReceived}
+                    onChange={(e) =>
+                      handleInputChange("finalPaymentReceived", e.target.value)
+                    }
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                  />
+                </div>
               </div>
 
               {/* Dynamic Balance Due Banner */}
@@ -1296,7 +1359,7 @@ export default function OrderDetailPage() {
                       Balance Due
                     </span>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      (Price + Misc) - (Discount + Deposit)
+                      (Price + Misc) - (Discount + Deposit + Final Paid)
                     </span>
                   </div>
 
@@ -1314,6 +1377,19 @@ export default function OrderDetailPage() {
                     })}
                   </span>
                 </div>
+              </div>
+
+              {/* Build PDF Invoice Button */}
+              <div className="pt-2">
+                <a
+                  href={`/orders/${order.id}/invoice`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full inline-flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+                >
+                  <Receipt className="w-4 h-4 text-emerald-400" />
+                  <span>Build PDF Invoice</span>
+                </a>
               </div>
             </div>
           </div>
