@@ -77,6 +77,7 @@ export async function POST(
         spokeId: targetSpokeId || quote.spokeId || null,
         surveyTypeId: quote.surveyTypeId,
         surveyPrice: Number(quote.price) || 0,
+        closingDate: quote.closingDate || null,
         status: "FIELD_PENDING",
       },
       include: {

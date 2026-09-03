@@ -16,7 +16,31 @@ import {
   AlertCircle,
   Upload,
   FileText,
+  Globe,
+  ExternalLink,
+  Plus,
+  Compass,
+  Tag,
+  Trash2,
 } from "lucide-react";
+
+interface LeadSourceData {
+  id: string;
+  name: string;
+  isActive: boolean;
+  _count?: {
+    quotes: number;
+  };
+}
+
+interface CountyLinkData {
+  id: string;
+  county: string;
+  state: string | null;
+  label: string;
+  url: string;
+  createdAt: string;
+}
 
 interface SystemSettingsData {
   id: string;
@@ -48,9 +72,115 @@ export default function WhiteLabelSettingsPage() {
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Lead Sources State
+  const [leadSources, setLeadSources] = useState<LeadSourceData[]>([]);
+  const [newLeadSourceName, setNewLeadSourceName] = useState("");
+  const [creatingLeadSource, setCreatingLeadSource] = useState(false);
+
+  // County Links State
+  const [countyLinks, setCountyLinks] = useState<CountyLinkData[]>([]);
+  const [newCounty, setNewCounty] = useState("");
+  const [newState, setNewState] = useState("");
+  const [newLabel, setNewLabel] = useState("");
+  const [newUrl, setNewUrl] = useState("");
+  const [creatingCountyLink, setCreatingCountyLink] = useState(false);
+
   useEffect(() => {
     fetchSettings();
+    fetchLeadSources();
+    fetchCountyLinks();
   }, []);
+
+  const fetchLeadSources = async () => {
+    try {
+      const res = await fetch("/api/admin/lead-sources");
+      if (res.ok) {
+        const data = await res.json();
+        setLeadSources(data);
+      }
+    } catch (err) {
+      console.error("Failed to load lead sources:", err);
+    }
+  };
+
+  const fetchCountyLinks = async () => {
+    try {
+      const res = await fetch("/api/admin/county-links");
+      if (res.ok) {
+        const data = await res.json();
+        setCountyLinks(data);
+      }
+    } catch (err) {
+      console.error("Failed to load county links:", err);
+    }
+  };
+
+  const handleCreateLeadSource = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newLeadSourceName.trim()) return;
+
+    try {
+      setCreatingLeadSource(true);
+      setError(null);
+      const res = await fetch("/api/admin/lead-sources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newLeadSourceName.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to create lead source");
+      }
+
+      setNewLeadSourceName("");
+      await fetchLeadSources();
+      setSuccessMessage("Lead source created successfully.");
+    } catch (err: any) {
+      setError(err.message || "Failed to add lead source.");
+    } finally {
+      setCreatingLeadSource(false);
+    }
+  };
+
+  const handleCreateCountyLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCounty.trim() || !newLabel.trim() || !newUrl.trim()) {
+      setError("Please fill out all required County Link fields.");
+      return;
+    }
+
+    try {
+      setCreatingCountyLink(true);
+      setError(null);
+      const res = await fetch("/api/admin/county-links", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          county: newCounty.trim(),
+          state: newState.trim().toUpperCase() || null,
+          label: newLabel.trim(),
+          url: newUrl.trim(),
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to create county link");
+      }
+
+      setNewCounty("");
+      setNewState("");
+      setNewLabel("");
+      setNewUrl("");
+      await fetchCountyLinks();
+      setSuccessMessage("County portal link created successfully.");
+    } catch (err: any) {
+      setError(err.message || "Failed to add county link.");
+    } finally {
+      setCreatingCountyLink(false);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -431,6 +561,194 @@ export default function WhiteLabelSettingsPage() {
           </button>
         </div>
       </form>
+
+      {/* ========================================================================= */}
+      {/* LEAD SOURCES MANAGEMENT */}
+      {/* ========================================================================= */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-5">
+        <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <Tag className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+            Lead Acquisition Sources
+          </h2>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Define marketing and inbound channels (e.g. Google Ads, Realtor Referral, Title Office, Direct Mail) for quote tracking.
+        </p>
+
+        {/* Add Lead Source Form */}
+        <form onSubmit={handleCreateLeadSource} className="flex gap-2">
+          <input
+            type="text"
+            value={newLeadSourceName}
+            onChange={(e) => setNewLeadSourceName(e.target.value)}
+            placeholder="e.g. Realtor Referral, Google Search, Title Company"
+            className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            disabled={creatingLeadSource || !newLeadSourceName.trim()}
+            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors disabled:opacity-50"
+          >
+            <Plus className="w-4 h-4 mr-1.5" />
+            {creatingLeadSource ? "Adding..." : "Add Source"}
+          </button>
+        </form>
+
+        {/* Lead Source List */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5 pt-1">
+          {leadSources.map((ls) => (
+            <div
+              key={ls.id}
+              className="p-3 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 rounded-lg flex items-center justify-between text-xs"
+            >
+              <div className="font-semibold text-slate-800 dark:text-slate-200 truncate">
+                {ls.name}
+              </div>
+              <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 rounded-full">
+                {ls._count?.quotes ?? 0} Quotes
+              </span>
+            </div>
+          ))}
+          {leadSources.length === 0 && (
+            <div className="col-span-full p-4 text-center text-xs text-slate-400 italic">
+              No lead sources added yet. Add your first marketing channel above.
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================================= */}
+      {/* COUNTY PROPERTY PORTALS & LINKS */}
+      {/* ========================================================================= */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-5">
+        <div className="flex items-center space-x-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+          <Globe className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+            County GIS & Property Appraiser Portals
+          </h2>
+        </div>
+        <p className="text-xs text-slate-500 dark:text-slate-400">
+          Add county-level research links (Property Appraiser, Clerk of Court, GIS Maps) that will automatically appear when inspecting quotes in that county.
+        </p>
+
+        {/* Add County Link Form */}
+        <form onSubmit={handleCreateCountyLink} className="grid grid-cols-1 sm:grid-cols-4 gap-2.5">
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              County Name *
+            </label>
+            <input
+              type="text"
+              required
+              value={newCounty}
+              onChange={(e) => setNewCounty(e.target.value)}
+              placeholder="e.g. Orange"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              State (Optional)
+            </label>
+            <input
+              type="text"
+              maxLength={2}
+              value={newState}
+              onChange={(e) => setNewState(e.target.value)}
+              placeholder="FL"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs uppercase text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Portal Label *
+            </label>
+            <input
+              type="text"
+              required
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="e.g. Property Appraiser"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+              Portal URL *
+            </label>
+            <input
+              type="url"
+              required
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              placeholder="https://ocpafl.org"
+              className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="sm:col-span-4 flex justify-end">
+            <button
+              type="submit"
+              disabled={creatingCountyLink}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors disabled:opacity-50"
+            >
+              <Plus className="w-4 h-4 mr-1.5" />
+              {creatingCountyLink ? "Saving Link..." : "Save County Link"}
+            </button>
+          </div>
+        </form>
+
+        {/* Existing County Links Table */}
+        <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
+          <table className="w-full text-xs text-left">
+            <thead className="bg-slate-50 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 font-semibold uppercase tracking-wider text-[10px]">
+              <tr>
+                <th className="px-4 py-2.5">County</th>
+                <th className="px-4 py-2.5">State</th>
+                <th className="px-4 py-2.5">Portal Label</th>
+                <th className="px-4 py-2.5">URL / Link</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
+              {countyLinks.map((link) => (
+                <tr key={link.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
+                  <td className="px-4 py-2.5 font-bold text-slate-900 dark:text-slate-100">
+                    {link.county}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-500 dark:text-slate-400">
+                    {link.state || "-"}
+                  </td>
+                  <td className="px-4 py-2.5 text-slate-800 dark:text-slate-200">
+                    {link.label}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <a
+                      href={link.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:underline truncate max-w-xs"
+                    >
+                      {link.url}
+                      <ExternalLink className="w-3 h-3 ml-1 flex-shrink-0" />
+                    </a>
+                  </td>
+                </tr>
+              ))}
+              {countyLinks.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-4 py-4 text-center text-slate-400 italic">
+                    No county portal links configured yet.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }

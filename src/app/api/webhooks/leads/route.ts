@@ -102,7 +102,7 @@ Notes: ${notes}`;
         zip,
         surveyTypeId,
         spokeId: targetSpokeId,
-        status: "PENDING",
+        status: "NEW",
         customScope: combinedNotes,
       },
     });

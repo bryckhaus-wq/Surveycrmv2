@@ -37,7 +37,7 @@ async function handleCron(req: Request) {
     // =========================================================================
     const staleQuotes = await prisma.quote.findMany({
       where: {
-        status: { in: ["PENDING", "NEW"] },
+        status: { in: ["NEW", "WAITING_ON_CLIENT", "WAITING_ON_MARKETER", "INFO_REQUEST"] },
         createdAt: { lte: fourteenDaysAgo },
       },
       select: {
@@ -69,7 +69,7 @@ async function handleCron(req: Request) {
     // =========================================================================
     const quotesNeedingFollowUp = await prisma.quote.findMany({
       where: {
-        status: { in: ["PENDING", "NEW"] },
+        status: { in: ["NEW", "WAITING_ON_CLIENT"] },
         createdAt: { lte: fortyEightHoursAgo },
         followUpSentAt: null,
       },

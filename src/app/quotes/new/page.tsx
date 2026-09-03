@@ -20,7 +20,17 @@ import {
   AlertTriangle,
   Receipt,
   Users,
+  ExternalLink,
 } from "lucide-react";
+
+interface DuplicateAddressMatch {
+  id: string;
+  identifier: string;
+  address: string;
+  clientName?: string;
+  status: string;
+  type: "QUOTE" | "ORDER";
+}
 
 interface ClientOption {
   id: string;
@@ -65,6 +75,8 @@ export default function NewQuotePage() {
   const [users, setUsers] = useState<StaffUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateMatches, setDuplicateMatches] = useState<DuplicateAddressMatch[]>([]);
+  const [checkingAddress, setCheckingAddress] = useState(false);
 
   // Form State
   const [clientId, setClientId] = useState("");
@@ -109,6 +121,31 @@ export default function NewQuotePage() {
       setSpokeId(matchedSpoke.id);
     }
   }, [state, spokes]);
+
+  // Debounced duplicate address checker
+  useEffect(() => {
+    if (!address || address.trim().length < 5) {
+      setDuplicateMatches([]);
+      return;
+    }
+
+    const timer = setTimeout(async () => {
+      try {
+        setCheckingAddress(true);
+        const res = await fetch(`/api/quotes/check-address?address=${encodeURIComponent(address.trim())}`);
+        if (res.ok) {
+          const data = await res.json();
+          setDuplicateMatches(data);
+        }
+      } catch (err) {
+        console.error("Failed to check duplicate address:", err);
+      } finally {
+        setCheckingAddress(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [address]);
 
   const fetchOptions = async () => {
     try {
@@ -405,6 +442,39 @@ export default function NewQuotePage() {
               Selecting a location or typing an address will update property fields, latitude, and longitude.
             </p>
           </div>
+
+          {/* Duplicate Address Warning Banner */}
+          {duplicateMatches.length > 0 && (
+            <div className="p-4 bg-amber-50 dark:bg-amber-950/50 border-2 border-amber-300 dark:border-amber-700/80 rounded-xl space-y-2.5 animate-in fade-in duration-200">
+              <div className="flex items-center space-x-2 text-amber-900 dark:text-amber-200 font-bold text-xs uppercase tracking-wider">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                <span>⚠️ Previous jobs found at this address:</span>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {duplicateMatches.map((match) => (
+                  <Link
+                    key={`${match.type}-${match.id}`}
+                    href={match.type === "ORDER" ? `/orders/${match.id}` : `/quotes/${match.id}`}
+                    target="_blank"
+                    className="p-2.5 bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 rounded-lg hover:border-amber-400 transition-colors flex items-center justify-between text-xs shadow-sm"
+                  >
+                    <div>
+                      <div className="font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1.5">
+                        <span>{match.identifier}</span>
+                        <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
+                          {match.status}
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate max-w-[200px]">
+                        {match.clientName ? `${match.clientName} • ` : ""}{match.address}
+                      </div>
+                    </div>
+                    <ExternalLink className="w-3.5 h-3.5 text-blue-500 flex-shrink-0 ml-2" />
+                  </Link>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-2">
             <div className="sm:col-span-2">

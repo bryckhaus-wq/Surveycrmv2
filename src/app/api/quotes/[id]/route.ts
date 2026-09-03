@@ -19,6 +19,7 @@ export async function GET(
         marketer: true,
         client: true,
         spoke: true,
+        leadSource: true,
         documents: {
           orderBy: { uploadedAt: "desc" },
         },
@@ -70,6 +71,10 @@ export async function PUT(
       spokeId,
       price,
       status,
+      clientFileNumber,
+      estimatedDelivery,
+      closingDate,
+      leadSourceId,
       includedFeatures,
       excludedFeatures,
       customScope,
@@ -109,7 +114,19 @@ export async function PUT(
         ...(price !== undefined && {
           price: parseFloat(price),
         }),
-        ...(status !== undefined && { status }),
+        ...(status !== undefined && { status: status as any }),
+        ...(clientFileNumber !== undefined && {
+          clientFileNumber: clientFileNumber ? clientFileNumber.trim() : null,
+        }),
+        ...(estimatedDelivery !== undefined && {
+          estimatedDelivery: estimatedDelivery ? estimatedDelivery.trim() : null,
+        }),
+        ...(closingDate !== undefined && {
+          closingDate: closingDate ? new Date(closingDate) : null,
+        }),
+        ...(leadSourceId !== undefined && {
+          leadSourceId: leadSourceId || null,
+        }),
         ...(includedFeatures !== undefined && { includedFeatures }),
         ...(excludedFeatures !== undefined && { excludedFeatures }),
         ...(customScope !== undefined && { customScope }),
@@ -120,6 +137,7 @@ export async function PUT(
         marketer: true,
         client: true,
         spoke: true,
+        leadSource: true,
         emailLogs: {
           orderBy: { sentAt: "desc" },
         },

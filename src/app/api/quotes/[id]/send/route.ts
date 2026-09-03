@@ -14,12 +14,16 @@ export async function POST(
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
 
   try {
+    const settings = await prisma.systemSettings.findUnique({
+      where: { id: "default" },
+    });
+
     const body = await req.json();
     const { pdfBase64, toEmail, subject, message } = body;
 
-    if (!toEmail || !pdfBase64) {
+    if (!toEmail) {
       return NextResponse.json(
-        { error: "Recipient email and PDF data are required" },
+        { error: "Recipient email is required" },
         { status: 400 }
       );
     }
@@ -41,7 +45,8 @@ export async function POST(
     const host = process.env.SMTP_HOST || "smtp.example.com";
     const user = process.env.SMTP_USER || "";
     const pass = process.env.SMTP_PASS || "";
-    const fromAddress = process.env.SMTP_FROM || "quotes@mjslandsurvey.com";
+    const fromAddress =
+      process.env.SMTP_FROM || settings?.email || "quotes@mjslandsurvey.com";
 
     const transporter = nodemailer.createTransport({
       host,
@@ -51,8 +56,12 @@ export async function POST(
     });
 
     const pdfBuffer = Buffer.from(pdfBase64, "base64");
-    const emailSubject = subject || "Survey Proposal from MJS Land Surveying";
-    const emailBody = message || "Please find attached the official survey proposal for your review.";
+    const emailSubject =
+      subject ||
+      `Survey Proposal from ${settings?.companyName || "Survey CRM"}`;
+    const emailBody =
+      message ||
+      `Please find attached the official survey proposal from ${settings?.companyName || "Survey CRM"} for your review.`;
 
     await transporter.sendMail({
       from: fromAddress,

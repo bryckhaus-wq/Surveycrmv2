@@ -27,9 +27,29 @@ import {
   Loader2,
   History,
   Printer,
+  Globe,
+  ExternalLink,
+  Calendar,
+  Tag,
+  Briefcase,
+  Hash,
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
-import { generateQuotePDF, buildQuotePDFDoc } from "@/lib/pdfGenerator";
+import { generateQuotePDF, buildQuotePDFDoc, SystemSettingsInfo } from "@/lib/pdfGenerator";
+
+interface LeadSourceOption {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+interface CountyLinkItem {
+  id: string;
+  county: string;
+  state: string | null;
+  label: string;
+  url: string;
+}
 
 interface ClientData {
   id: string;
@@ -91,6 +111,11 @@ interface QuoteDetail {
   longitude: number | null;
   price: string | number;
   status: string;
+  clientFileNumber?: string | null;
+  estimatedDelivery?: string | null;
+  closingDate?: string | null;
+  leadSourceId?: string | null;
+  leadSource?: { id: string; name: string } | null;
   customScope?: string | null;
   includedFeatures?: string[] | null;
   excludedFeatures?: string[] | null;
@@ -118,6 +143,7 @@ export default function QuoteDetailPage() {
   const id = params.id as string;
 
   const [quote, setQuote] = useState<QuoteDetail | null>(null);
+  const [settings, setSettings] = useState<SystemSettingsInfo | null>(null);
   const [users, setUsers] = useState<Array<{ id: string; name: string; role: string; email: string }>>([]);
   const [spokes, setSpokes] = useState<SpokeOption[]>([]);
   const [spokeId, setSpokeId] = useState<string>("");
@@ -129,6 +155,15 @@ export default function QuoteDetailPage() {
   const [savingScope, setSavingScope] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // New Fields: File #, Estimated Delivery, Closing Date, Lead Source
+  const [clientFileNumber, setClientFileNumber] = useState("");
+  const [estimatedDelivery, setEstimatedDelivery] = useState("");
+  const [closingDate, setClosingDate] = useState("");
+  const [leadSourceId, setLeadSourceId] = useState("");
+  const [leadSources, setLeadSources] = useState<LeadSourceOption[]>([]);
+  const [countyLinks, setCountyLinks] = useState<CountyLinkItem[]>([]);
+  const [savingJobDetails, setSavingJobDetails] = useState(false);
 
   // Scope & Terms Editable State
   const [customScope, setCustomScope] = useState("");
@@ -148,11 +183,50 @@ export default function QuoteDetailPage() {
   useEffect(() => {
     if (id) {
       fetchQuote();
+      fetchSettings();
+      fetchLeadSources();
       fetchUsers();
       fetchSpokes();
       fetchAuditLogs();
     }
   }, [id]);
+
+  const fetchSettings = async () => {
+    try {
+      const res = await fetch("/api/admin/settings");
+      if (res.ok) {
+        const data = await res.json();
+        setSettings(data);
+      }
+    } catch (err) {
+      console.error("Failed to load settings:", err);
+    }
+  };
+
+  const fetchLeadSources = async () => {
+    try {
+      const res = await fetch("/api/admin/lead-sources");
+      if (res.ok) {
+        const data = await res.json();
+        setLeadSources(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch lead sources:", err);
+    }
+  };
+
+  const fetchCountyLinks = async (countyName: string) => {
+    if (!countyName) return;
+    try {
+      const res = await fetch(`/api/admin/county-links?county=${encodeURIComponent(countyName)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setCountyLinks(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch county links:", err);
+    }
+  };
 
   const fetchAuditLogs = async () => {
     try {
@@ -199,6 +273,10 @@ export default function QuoteDetailPage() {
         setQuote(data);
         setClientEmail(data.clientEmail || data.client?.email || "");
         setSpokeId(data.spokeId || data.spoke?.id || "");
+        setClientFileNumber(data.clientFileNumber || "");
+        setEstimatedDelivery(data.estimatedDelivery || "");
+        setClosingDate(data.closingDate ? new Date(data.closingDate).toISOString().split("T")[0] : "");
+        setLeadSourceId(data.leadSourceId || "");
         setCustomScope(data.customScope || "");
         setIncludedFeatures(
           Array.isArray(data.includedFeatures) ? data.includedFeatures : []
@@ -206,6 +284,9 @@ export default function QuoteDetailPage() {
         setExcludedFeatures(
           Array.isArray(data.excludedFeatures) ? data.excludedFeatures : []
         );
+        if (data.county) {
+          fetchCountyLinks(data.county);
+        }
       } else {
         setError("Failed to load quote details.");
       }
@@ -456,23 +537,61 @@ export default function QuoteDetailPage() {
     }
   };
 
+  const handleSaveJobDetails = async () => {
+    try {
+      setSavingJobDetails(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      const res = await fetch(`/api/quotes/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          clientFileNumber: clientFileNumber.trim() || null,
+          estimatedDelivery: estimatedDelivery.trim() || null,
+          closingDate: closingDate ? new Date(closingDate) : null,
+          leadSourceId: leadSourceId || null,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to save project details");
+      }
+
+      const updated = await res.json();
+      setQuote(updated);
+      fetchAuditLogs();
+      setSuccessMessage("Job & lead details saved successfully.");
+    } catch (err: any) {
+      setError(err.message || "Failed to save job details.");
+    } finally {
+      setSavingJobDetails(false);
+    }
+  };
+
   const handleDownloadPDF = () => {
     if (quote) {
-      generateQuotePDF({
-        ...quote,
-        customScope,
-        includedFeatures,
-        excludedFeatures,
-      });
+      generateQuotePDF(
+        {
+          ...quote,
+          customScope,
+          includedFeatures,
+          excludedFeatures,
+          settings,
+        },
+        settings
+      );
     }
   };
 
   const handleOpenEmailModal = () => {
     if (!quote) return;
+    const company = settings?.companyName || "Survey CRM";
     setEmailTo(quote.clientEmail || quote.client?.email || "");
-    setEmailSubject(`Survey Proposal from MJS Land Surveying - Quote #${quote.quoteNumber}`);
+    setEmailSubject(`Survey Proposal from ${company} - Quote #${quote.quoteNumber}`);
     setEmailMessage(
-      `Dear ${quote.clientName},\n\nPlease find attached the official Survey Proposal for your project at ${quote.address}, ${quote.city}, ${quote.state}.\n\nTotal Investment: $${Number(quote.price).toFixed(2)}\n\nPlease feel free to contact our office with any questions or to authorize field scheduling.\n\nBest regards,\nMJS Land Surveying & Mapping`
+      `Dear ${quote.clientName},\n\nPlease find attached the official Survey Proposal for your project at ${quote.address}, ${quote.city}, ${quote.state}.\n\nTotal Investment: $${Number(quote.price).toFixed(2)}\n\nPlease feel free to contact our office with any questions or to authorize field scheduling.\n\nBest regards,\n${company}`
     );
     setEmailModalError(null);
     setEmailSendingStatus(null);
@@ -492,12 +611,16 @@ export default function QuoteDetailPage() {
       setEmailSendingStatus("Generating...");
 
       // Build PDF Base64
-      const doc = buildQuotePDFDoc({
-        ...quote,
-        customScope,
-        includedFeatures,
-        excludedFeatures,
-      });
+      const doc = buildQuotePDFDoc(
+        {
+          ...quote,
+          customScope,
+          includedFeatures,
+          excludedFeatures,
+          settings,
+        },
+        settings
+      );
       const pdfBase64 = doc.output("datauristring").split(",")[1];
 
       setEmailSendingStatus("Sending...");
@@ -595,11 +718,21 @@ export default function QuoteDetailPage() {
         <div className="flex flex-wrap items-center gap-2.5">
           <button
             onClick={handleOpenEmailModal}
-            className="inline-flex items-center px-4 py-2.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold text-sm rounded-lg border border-blue-300 dark:border-blue-800 shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="inline-flex items-center px-4 py-2.5 bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold text-sm rounded-lg border border-blue-300 dark:border-blue-800 shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
           >
             <Mail className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
             Email Proposal to Client
           </button>
+
+          {quote.status === "WAITING_ON_CLIENT" && (
+            <button
+              onClick={handleOpenEmailModal}
+              className="inline-flex items-center px-4 py-2.5 bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 font-semibold text-sm rounded-lg border border-amber-300 dark:border-amber-800 shadow-sm transition-colors focus:ring-2 focus:ring-amber-500 focus:outline-none cursor-pointer"
+            >
+              <Send className="w-4 h-4 mr-2 text-amber-600 dark:text-amber-400" />
+              Follow Up Email
+            </button>
+          )}
 
           <Link
             href={`/quotes/${quote.id}/proposal`}
@@ -612,7 +745,7 @@ export default function QuoteDetailPage() {
 
           <button
             onClick={handleDownloadPDF}
-            className="inline-flex items-center px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            className="inline-flex items-center px-4 py-2.5 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold text-sm rounded-lg border border-slate-300 dark:border-slate-700 shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none cursor-pointer"
           >
             <Download className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
             Download PDF Proposal
@@ -800,6 +933,83 @@ export default function QuoteDetailPage() {
             </div>
           </div>
 
+          {/* Job & Lead Tracking Details Card */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center">
+                <Briefcase className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+                Job & Lead Source Details
+              </h2>
+              <button
+                type="button"
+                onClick={handleSaveJobDetails}
+                disabled={savingJobDetails}
+                className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                <Save className="w-3.5 h-3.5 mr-1" />
+                {savingJobDetails ? "Saving..." : "Save Details"}
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Client File / Loan #
+                </label>
+                <input
+                  type="text"
+                  value={clientFileNumber}
+                  onChange={(e) => setClientFileNumber(e.target.value)}
+                  placeholder="e.g. GF-2024-9982 or Loan #1402"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Lead Acquisition Source
+                </label>
+                <select
+                  value={leadSourceId}
+                  onChange={(e) => setLeadSourceId(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Direct Inbound / Not Specified --</option>
+                  {leadSources.map((ls) => (
+                    <option key={ls.id} value={ls.id}>
+                      {ls.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Estimated Delivery Timeline
+                </label>
+                <input
+                  type="text"
+                  value={estimatedDelivery}
+                  onChange={(e) => setEstimatedDelivery(e.target.value)}
+                  placeholder="e.g. 3-5 business days after authorization"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Anticipated Closing Date
+                </label>
+                <input
+                  type="date"
+                  value={closingDate}
+                  onChange={(e) => setClosingDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Property Location */}
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3">
@@ -853,6 +1063,30 @@ export default function QuoteDetailPage() {
                       Open in Maps <ArrowUpRight className="w-3 h-3 ml-0.5" />
                     </a>
                   )}
+                </div>
+              )}
+
+              {/* County Portals & GIS Links */}
+              {countyLinks.length > 0 && (
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center">
+                    <Globe className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                    County Research Portals ({quote.county})
+                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    {countyLinks.map((link) => (
+                      <a
+                        key={link.id}
+                        href={link.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-lg border border-blue-200 dark:border-blue-800 shadow-sm transition-colors"
+                      >
+                        <span>{link.label}</span>
+                        <ExternalLink className="w-3 h-3 ml-1 text-blue-500" />
+                      </a>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
@@ -1068,36 +1302,22 @@ export default function QuoteDetailPage() {
               </span>
             </div>
 
-            <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
-              <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1.5">
-                Change Status {quote.status === "WON" && <span className="text-emerald-600 dark:text-emerald-400 font-bold ml-1">(Locked - WON)</span>}
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  disabled={quote.status === "WON"}
-                  onClick={() => handleStatusChange("NEW")}
-                  className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                    quote.status === "NEW"
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  }`}
-                >
-                  NEW
-                </button>
-                <button
-                  type="button"
-                  disabled={quote.status === "WON"}
-                  onClick={() => handleStatusChange("LOST")}
-                  className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-                    quote.status === "LOST"
-                      ? "bg-rose-600 text-white border-rose-600"
-                      : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  }`}
-                >
-                  LOST
-                </button>
-              </div>
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
+              <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                Quote Status
+              </label>
+              <select
+                value={quote.status}
+                onChange={(e) => handleStatusChange(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="NEW">NEW</option>
+                <option value="WAITING_ON_CLIENT">WAITING ON CLIENT</option>
+                <option value="WAITING_ON_MARKETER">WAITING ON MARKETER</option>
+                <option value="INFO_REQUEST">INFO REQUEST</option>
+                <option value="WON">WON (MANUAL MARK)</option>
+                <option value="LOST">LOST</option>
+              </select>
             </div>
           </div>
         </div>
