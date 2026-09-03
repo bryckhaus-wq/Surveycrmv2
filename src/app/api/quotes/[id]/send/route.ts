@@ -55,13 +55,26 @@ export async function POST(
       auth: user ? { user, pass } : undefined,
     });
 
+    const quote = await prisma.quote.findUnique({
+      where: { id: params.id },
+      include: { client: true },
+    });
+
     const pdfBuffer = Buffer.from(pdfBase64, "base64");
     const emailSubject =
       subject ||
-      `Survey Proposal from ${settings?.companyName || "Survey CRM"}`;
-    const emailBody =
-      message ||
-      `Please find attached the official survey proposal from ${settings?.companyName || "Survey CRM"} for your review.`;
+      `Survey Proposal from ${settings?.companyName || "Survey CRM"} - Quote #${quote?.quoteNumber || params.id}`;
+
+    let emailBody = message;
+    if (!emailBody) {
+      emailBody = settings?.quoteEmailTemplate || "Please see the attached quote.";
+    }
+    if (quote) {
+      emailBody = emailBody
+        .replace(/{{clientName}}/g, quote.client?.name || quote.clientName || "Client")
+        .replace(/{{quoteNumber}}/g, String(quote.quoteNumber))
+        .replace(/{{address}}/g, quote.address || "");
+    }
 
     await transporter.sendMail({
       from: fromAddress,

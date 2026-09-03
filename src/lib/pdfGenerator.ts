@@ -8,6 +8,8 @@ export interface SystemSettingsInfo {
   logoUrl?: string | null;
   themeColor?: string | null;
   proposalTerms?: string | null;
+  quoteEmailTemplate?: string | null;
+  orderConfirmEmailTemplate?: string | null;
 }
 
 export interface PDFQuoteData {

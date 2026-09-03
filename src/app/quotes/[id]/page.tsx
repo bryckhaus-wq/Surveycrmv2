@@ -616,9 +616,17 @@ export default function QuoteDetailPage() {
     const company = settings?.companyName || "Survey CRM";
     setEmailTo(quote.clientEmail || quote.client?.email || "");
     setEmailSubject(`Survey Proposal from ${company} - Quote #${quote.quoteNumber}`);
-    setEmailMessage(
-      `Dear ${quote.clientName},\n\nPlease find attached the official Survey Proposal for your project at ${quote.address}, ${quote.city}, ${quote.state}.\n\nTotal Investment: $${Number(quote.price).toFixed(2)}\n\nPlease feel free to contact our office with any questions or to authorize field scheduling.\n\nBest regards,\n${company}`
-    );
+    
+    let defaultMsg =
+      settings?.quoteEmailTemplate ||
+      `Dear {{clientName}},\n\nPlease find attached the official Survey Proposal for your project at {{address}}, ${quote.city}, ${quote.state}.\n\nTotal Investment: $${Number(quote.price).toFixed(2)}\n\nPlease feel free to contact our office with any questions or to authorize field scheduling.\n\nBest regards,\n${company}`;
+
+    defaultMsg = defaultMsg
+      .replace(/{{clientName}}/g, quote.client?.name || quote.clientName || "Client")
+      .replace(/{{quoteNumber}}/g, String(quote.quoteNumber))
+      .replace(/{{address}}/g, quote.address || "");
+
+    setEmailMessage(defaultMsg);
     setEmailModalError(null);
     setEmailSendingStatus(null);
     setIsEmailModalOpen(true);

@@ -39,7 +39,7 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { companyName, address, phone, email, logoUrl, themeColor, proposalTerms } = body;
+    const { companyName, address, phone, email, logoUrl, themeColor, proposalTerms, quoteEmailTemplate, orderConfirmEmailTemplate } = body;
 
     const settings = await prisma.systemSettings.upsert({
       where: { id: "default" },
@@ -51,6 +51,8 @@ export async function PUT(req: Request) {
         ...(logoUrl !== undefined && { logoUrl: logoUrl || null }),
         ...(themeColor !== undefined && { themeColor: themeColor || "#0f172a" }),
         ...(proposalTerms !== undefined && { proposalTerms: proposalTerms ? proposalTerms.trim() : null }),
+        ...(quoteEmailTemplate !== undefined && { quoteEmailTemplate: quoteEmailTemplate ? quoteEmailTemplate.trim() : null }),
+        ...(orderConfirmEmailTemplate !== undefined && { orderConfirmEmailTemplate: orderConfirmEmailTemplate ? orderConfirmEmailTemplate.trim() : null }),
       },
       create: {
         id: "default",
@@ -61,6 +63,8 @@ export async function PUT(req: Request) {
         logoUrl: logoUrl || null,
         themeColor: themeColor || "#0f172a",
         proposalTerms: proposalTerms ? proposalTerms.trim() : null,
+        quoteEmailTemplate: quoteEmailTemplate ? quoteEmailTemplate.trim() : null,
+        orderConfirmEmailTemplate: orderConfirmEmailTemplate ? orderConfirmEmailTemplate.trim() : null,
       },
     });
 

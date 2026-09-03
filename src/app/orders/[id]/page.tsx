@@ -201,6 +201,7 @@ export default function OrderDetailPage() {
   const [surveyTypes, setSurveyTypes] = useState<SurveyTypeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [sendingConfirmation, setSendingConfirmation] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -695,6 +696,46 @@ export default function OrderDetailPage() {
     }
   };
 
+  const handleConfirmOrder = async () => {
+    if (!order) return;
+    const recipientEmail =
+      order.client?.email ||
+      order.quote?.client?.email ||
+      formData.clientEmail;
+
+    if (
+      !confirm(
+        `Send Order Confirmation email to ${recipientEmail || "the client"}?`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setSendingConfirmation(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      const res = await fetch(`/api/orders/${id}/send-confirmation`, {
+        method: "POST",
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to send order confirmation email.");
+      }
+
+      setSuccessMessage(data.message || "Order confirmation email sent successfully.");
+      await fetchOrder();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to send order confirmation email.");
+    } finally {
+      setSendingConfirmation(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-12 text-center text-slate-500 dark:text-slate-400">
@@ -837,6 +878,25 @@ export default function OrderDetailPage() {
               Text Client
             </a>
           ) : null}
+
+          <button
+            type="button"
+            onClick={handleConfirmOrder}
+            disabled={sendingConfirmation}
+            className="inline-flex items-center px-3 py-2 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 cursor-pointer"
+          >
+            {sendingConfirmation ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                Sending Confirmation...
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 text-emerald-600 dark:text-emerald-400" />
+                Confirm Order
+              </>
+            )}
+          </button>
 
           <button
             type="button"

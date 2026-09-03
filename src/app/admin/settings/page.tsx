@@ -51,6 +51,8 @@ interface SystemSettingsData {
   logoUrl?: string | null;
   themeColor: string;
   proposalTerms?: string | null;
+  quoteEmailTemplate?: string | null;
+  orderConfirmEmailTemplate?: string | null;
   updatedAt?: string;
 }
 
@@ -64,6 +66,8 @@ export default function WhiteLabelSettingsPage() {
     logoUrl: "",
     themeColor: "#0f172a",
     proposalTerms: "",
+    quoteEmailTemplate: "",
+    orderConfirmEmailTemplate: "",
   });
 
   const [loading, setLoading] = useState(true);
@@ -200,6 +204,8 @@ export default function WhiteLabelSettingsPage() {
         logoUrl: data.logoUrl || "",
         themeColor: data.themeColor || "#0f172a",
         proposalTerms: data.proposalTerms || "",
+        quoteEmailTemplate: data.quoteEmailTemplate || "",
+        orderConfirmEmailTemplate: data.orderConfirmEmailTemplate || "",
       });
     } catch (err: any) {
       console.error(err);
@@ -297,6 +303,8 @@ export default function WhiteLabelSettingsPage() {
         logoUrl: data.logoUrl || "",
         themeColor: data.themeColor || "#0f172a",
         proposalTerms: data.proposalTerms || "",
+        quoteEmailTemplate: data.quoteEmailTemplate || "",
+        orderConfirmEmailTemplate: data.orderConfirmEmailTemplate || "",
       });
       setSuccessMessage("White-label system settings saved successfully.");
     } catch (err: any) {
@@ -535,6 +543,52 @@ export default function WhiteLabelSettingsPage() {
               value={settings.proposalTerms || ""}
               onChange={(e) => handleInputChange("proposalTerms", e.target.value)}
               placeholder="Enter standard contract terms, payment timelines, property access requirements, copyright notices, etc."
+              className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono leading-relaxed text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+
+        {/* Email Communication Templates */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-6">
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+            <Mail className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+            Email Templates
+          </h2>
+
+          {/* Quote Email Template */}
+          <div className="space-y-2">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Quote Email Template
+              </label>
+              <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                Available placeholders: <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;clientName&#125;&#125;</code>, <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;quoteNumber&#125;&#125;</code>, <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;address&#125;&#125;</code>
+              </span>
+            </div>
+            <textarea
+              rows={6}
+              value={settings.quoteEmailTemplate || ""}
+              onChange={(e) => handleInputChange("quoteEmailTemplate", e.target.value)}
+              placeholder="Dear {{clientName}},\n\nPlease find attached the official Survey Proposal for your project at {{address}} (Quote #{{quoteNumber}}).\n\nBest regards,\nSurvey Team"
+              className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono leading-relaxed text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Order Confirmation Template */}
+          <div className="space-y-2 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Order Confirmation Template
+              </label>
+              <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">
+                Available placeholders: <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;clientName&#125;&#125;</code>, <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;orderNumber&#125;&#125;</code>, <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;address&#125;&#125;</code>
+              </span>
+            </div>
+            <textarea
+              rows={6}
+              value={settings.orderConfirmEmailTemplate || ""}
+              onChange={(e) => handleInputChange("orderConfirmEmailTemplate", e.target.value)}
+              placeholder="Dear {{clientName}},\n\nYour work order #{{orderNumber}} for {{address}} has been confirmed and placed into our active project schedule.\n\nThank you for your business!"
               className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono leading-relaxed text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
