@@ -44,20 +44,6 @@ import {
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
 
-interface AttachmentItem {
-  id: string;
-  fileName: string;
-  fileUrl: string;
-  fileType: string;
-  uploader?: {
-    id: string;
-    name: string;
-    email: string;
-    role: string;
-  } | null;
-  createdAt: string;
-}
-
 interface AuditLogItem {
   id: string;
   entityType: string;
@@ -216,9 +202,6 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [savingOrder, setSavingOrder] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
-  const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
-  const [uploadingAttachment, setUploadingAttachment] = useState(false);
-  const [attachmentError, setAttachmentError] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -356,7 +339,6 @@ export default function OrderDetailPage() {
       fetchUsers();
       fetchSpokes();
       fetchSurveyTypes();
-      fetchAttachments();
       fetchAuditLogs();
     }
   }, [id]);
@@ -430,18 +412,6 @@ export default function OrderDetailPage() {
       }
     } catch (err) {
       console.error(err);
-    }
-  };
-
-  const fetchAttachments = async () => {
-    try {
-      const res = await fetch(`/api/orders/${id}/attachments`);
-      if (res.ok) {
-        const data = await res.json();
-        setAttachments(data);
-      }
-    } catch (err) {
-      console.error("Failed to load attachments:", err);
     }
   };
 
@@ -531,55 +501,6 @@ export default function OrderDetailPage() {
       );
     } catch (err: any) {
       setError(err.message || "Failed to update order status.");
-    }
-  };
-
-  const handleUploadAttachment = async (
-    e: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      setUploadingAttachment(true);
-      setAttachmentError(null);
-
-      const presignRes = await fetch(`/api/orders/${id}/attachments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          fileName: file.name,
-          fileType: file.type || "application/octet-stream",
-        }),
-      });
-
-      if (!presignRes.ok) {
-        const errData = await presignRes.json();
-        throw new Error(errData.error || "Failed to initialize upload.");
-      }
-
-      const { uploadUrl } = await presignRes.json();
-
-      const uploadRes = await fetch(uploadUrl, {
-        method: "PUT",
-        body: file,
-        headers: {
-          "Content-Type": file.type || "application/octet-stream",
-        },
-      });
-
-      if (!uploadRes.ok) {
-        throw new Error("Direct upload to storage failed.");
-      }
-
-      await fetchAttachments();
-      setSuccessMessage(`Attachment "${file.name}" uploaded successfully.`);
-    } catch (err: any) {
-      console.error(err);
-      setAttachmentError(err.message || "Failed to upload attachment.");
-    } finally {
-      setUploadingAttachment(false);
-      e.target.value = "";
     }
   };
 
@@ -1884,34 +1805,7 @@ export default function OrderDetailPage() {
                 <FileCheck className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
                 Job Documents ({order.documents?.length || 0})
               </h2>
-
-              <label className="inline-flex items-center px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm cursor-pointer transition-colors">
-                {uploadingAttachment ? (
-                  <>
-                    <Loader2 className="w-3 h-3 mr-1 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-3 h-3 mr-1" />
-                    Upload File
-                  </>
-                )}
-                <input
-                  type="file"
-                  onChange={handleUploadAttachment}
-                  disabled={uploadingAttachment}
-                  className="hidden"
-                />
-              </label>
             </div>
-
-            {attachmentError && (
-              <div className="p-2.5 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg text-xs text-rose-800 dark:text-rose-300 flex items-center space-x-2">
-                <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                <span>{attachmentError}</span>
-              </div>
-            )}
 
             {/* Document List */}
             {order.documents && order.documents.length > 0 ? (
@@ -1948,7 +1842,7 @@ export default function OrderDetailPage() {
                         }} 
                         className="ml-4 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm font-bold flex items-center gap-1 cursor-pointer"
                       >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        <Trash2 className="w-4 h-4" />
                         Delete
                       </button>
                     </div>
@@ -1972,47 +1866,6 @@ export default function OrderDetailPage() {
                 buttonLabel="Drop file / Upload to Storage"
               />
             </div>
-          </div>
-
-          {/* Card 3C: Uploaded Attachments & Artifacts */}
-          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-3">
-            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center">
-              <Paperclip className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
-              Direct Attachments ({attachments.length})
-            </h3>
-
-            {attachments.length === 0 ? (
-              <p className="text-xs text-slate-500 dark:text-slate-400 italic py-1">
-                No direct attachments linked yet.
-              </p>
-            ) : (
-              <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-48 overflow-y-auto border border-slate-200 dark:border-slate-800 rounded-lg bg-slate-50/50 dark:bg-slate-800/40">
-                {attachments.map((att) => (
-                  <div
-                    key={att.id}
-                    className="p-2.5 flex items-center justify-between text-xs hover:bg-slate-100/60 dark:hover:bg-slate-800/80 transition-colors"
-                  >
-                    <div className="space-y-0.5 truncate max-w-[70%]">
-                      <div className="font-semibold text-slate-900 dark:text-slate-100 truncate">
-                        {att.fileName}
-                      </div>
-                      <div className="text-[10px] text-slate-500 dark:text-slate-400">
-                        {new Date(att.createdAt).toLocaleDateString()}
-                      </div>
-                    </div>
-                    <a
-                      href={att.fileUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center text-[11px] text-blue-600 dark:text-blue-400 font-semibold hover:underline"
-                    >
-                      View
-                      <ExternalLink className="w-3 h-3 ml-0.5" />
-                    </a>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         </div>
       </div>

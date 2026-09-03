@@ -576,6 +576,26 @@ export default function QuoteDetailPage() {
     }
   };
 
+  const handleDeleteDocument = async (docId: string) => {
+    if (!confirm("Are you sure you want to delete this document?")) return;
+    try {
+      const res = await fetch(`/api/documents/${docId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error("Failed to delete document");
+
+      setQuote((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          documents: (prev.documents || []).filter((d) => d.id !== docId),
+        };
+      });
+      setSuccessMessage("Document deleted successfully.");
+    } catch (error: any) {
+      console.error(error);
+      alert(error.message || "Failed to delete document");
+    }
+  };
+
   const handleDownloadPDF = () => {
     if (quote) {
       generateQuotePDF(
@@ -1263,14 +1283,26 @@ export default function QuoteDetailPage() {
                         {doc.docType} • {new Date(doc.uploadedAt).toLocaleDateString()}
                       </div>
                     </div>
-                    <a
-                      href={`/api/documents/${doc.id}/download`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-                    >
-                      Download
-                    </a>
+                    <div className="flex items-center space-x-2">
+                      <a
+                        href={`/api/documents/${doc.id}/download`}
+                        download={doc.fileName}
+                        className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline cursor-pointer"
+                      >
+                        Download
+                      </a>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          handleDeleteDocument(doc.id);
+                        }}
+                        className="ml-4 text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300 text-sm font-bold flex items-center gap-1 cursor-pointer"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
