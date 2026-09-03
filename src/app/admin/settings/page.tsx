@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Upload,
+  FileText,
 } from "lucide-react";
 
 interface SystemSettingsData {
@@ -25,6 +26,7 @@ interface SystemSettingsData {
   email?: string | null;
   logoUrl?: string | null;
   themeColor: string;
+  proposalTerms?: string | null;
   updatedAt?: string;
 }
 
@@ -37,6 +39,7 @@ export default function WhiteLabelSettingsPage() {
     email: "",
     logoUrl: "",
     themeColor: "#0f172a",
+    proposalTerms: "",
   });
 
   const [loading, setLoading] = useState(true);
@@ -66,6 +69,7 @@ export default function WhiteLabelSettingsPage() {
         email: data.email || "",
         logoUrl: data.logoUrl || "",
         themeColor: data.themeColor || "#0f172a",
+        proposalTerms: data.proposalTerms || "",
       });
     } catch (err: any) {
       console.error(err);
@@ -162,6 +166,7 @@ export default function WhiteLabelSettingsPage() {
         email: data.email || "",
         logoUrl: data.logoUrl || "",
         themeColor: data.themeColor || "#0f172a",
+        proposalTerms: data.proposalTerms || "",
       });
       setSuccessMessage("White-label system settings saved successfully.");
     } catch (err: any) {
@@ -382,6 +387,26 @@ export default function WhiteLabelSettingsPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Proposal Terms and Conditions */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
+          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3">
+            <FileText className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+            Proposal Terms and Conditions
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            These default terms and conditions will automatically appear at the bottom of generated Quote Proposals.
+          </p>
+          <div>
+            <textarea
+              rows={8}
+              value={settings.proposalTerms || ""}
+              onChange={(e) => handleInputChange("proposalTerms", e.target.value)}
+              placeholder="Enter standard contract terms, payment timelines, property access requirements, copyright notices, etc."
+              className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono leading-relaxed text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
           </div>
         </div>
 

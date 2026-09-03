@@ -171,8 +171,9 @@ export default function OrderInvoicePage() {
 
       {/* Standard 8.5x11 Paper Form Layout */}
       <div className="max-w-3xl mx-auto bg-white p-4 sm:p-8 print:p-0 print:max-w-none text-black">
-        {/* Header */}
-        <div className="flex justify-between items-start border-b-2 border-black pb-6">
+        {/* Document Header - 2 Column Layout */}
+        <div className="grid grid-cols-2 gap-8 border-b-2 border-black pb-6 items-start">
+          {/* Left Side: System Settings / Company Info */}
           <div className="space-y-2">
             {settings?.logoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
@@ -207,41 +208,47 @@ export default function OrderInvoicePage() {
             </div>
           </div>
 
-          <div className="text-right">
-            <h2 className="text-3xl font-black uppercase tracking-widest">INVOICE</h2>
-            <div className="text-xs mt-2 space-y-1">
-              <p>
-                <span className="font-bold">Invoice #:</span> {order.orderNumber}
-              </p>
-              <p>
-                <span className="font-bold">Date:</span>{" "}
-                {new Date(order.createdAt).toLocaleDateString("en-US", {
-                  year: "numeric",
-                  month: "short",
-                  day: "numeric",
-                })}
-              </p>
-              {order.clientDueDate && (
+          {/* Right Side: Invoice Meta & Client Details */}
+          <div className="text-right space-y-3">
+            <div>
+              <h2 className="text-3xl font-black uppercase tracking-widest">INVOICE</h2>
+              <div className="text-xs mt-1 space-y-0.5">
                 <p>
-                  <span className="font-bold">Due Date:</span>{" "}
-                  {new Date(order.clientDueDate).toLocaleDateString("en-US", {
+                  <span className="font-bold">Invoice #:</span> {order.orderNumber}
+                </p>
+                <p>
+                  <span className="font-bold">Date:</span>{" "}
+                  {new Date(order.createdAt).toLocaleDateString("en-US", {
                     year: "numeric",
                     month: "short",
                     day: "numeric",
                   })}
                 </p>
-              )}
+                {order.completionDate && (
+                  <p>
+                    <span className="font-bold">Completion Date:</span>{" "}
+                    {new Date(order.completionDate).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                )}
+                {order.clientDueDate && (
+                  <p>
+                    <span className="font-bold">Due Date:</span>{" "}
+                    {new Date(order.clientDueDate).toLocaleDateString("en-US", {
+                      year: "numeric",
+                      month: "short",
+                      day: "numeric",
+                    })}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
 
-        {/* Bill To & Property Address Info */}
-        <div className="grid grid-cols-2 gap-8 py-6 border-b border-black text-xs">
-          <div>
-            <h3 className="font-black uppercase tracking-wider text-black mb-2 border-b border-black pb-1">
-              Bill To:
-            </h3>
-            <div className="space-y-0.5">
+            <div className="text-xs border-t border-black/30 pt-2 space-y-0.5">
+              <p className="font-black uppercase tracking-wider text-black">Bill To:</p>
               <p className="font-bold text-sm">{order.client?.name || order.clientName}</p>
               {order.orderedBy && (
                 <p className="text-xs text-zinc-700">
@@ -249,24 +256,32 @@ export default function OrderInvoicePage() {
                 </p>
               )}
               {order.client?.address && <p>{order.client.address}</p>}
-              {order.client?.phone && <p>Phone: {order.client.phone}</p>}
               {order.client?.email && <p>Email: {order.client.email}</p>}
+              {order.client?.phone && <p>Phone: {order.client.phone}</p>}
             </div>
           </div>
+        </div>
 
-          <div>
-            <h3 className="font-black uppercase tracking-wider text-black mb-2 border-b border-black pb-1">
-              Survey Property:
-            </h3>
-            <div className="space-y-0.5">
-              <p className="font-bold">{order.address}</p>
-              <p>
+        {/* Prominent Order Details & Survey Property Address */}
+        <div className="py-5 border-b border-black text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <h3 className="font-black uppercase tracking-wider text-black mb-1.5">
+                Survey Property Address:
+              </h3>
+              <p className="font-bold text-sm">{order.address}</p>
+              <p className="text-zinc-700">
                 {order.city}, {order.state} {order.zip}
               </p>
-              {order.county && <p>County: {order.county}</p>}
-              {order.taxParcelId && <p>Tax Parcel ID: {order.taxParcelId}</p>}
+              {order.county && <p className="text-zinc-700 mt-0.5">County: {order.county}</p>}
+            </div>
+            <div>
+              <h3 className="font-black uppercase tracking-wider text-black mb-1.5">
+                Legal / Parcel Reference:
+              </h3>
+              {order.taxParcelId && <p><span className="font-semibold text-black">Tax Parcel ID:</span> {order.taxParcelId}</p>}
               {(order.lot || order.block || order.subdivision) && (
-                <p>
+                <p className="text-zinc-700">
                   {[
                     order.lot ? `Lot ${order.lot}` : null,
                     order.block ? `Block ${order.block}` : null,
@@ -274,6 +289,16 @@ export default function OrderInvoicePage() {
                   ]
                     .filter(Boolean)
                     .join(", ")}
+                </p>
+              )}
+              {order.completionDate && (
+                <p className="mt-1">
+                  <span className="font-semibold text-black">Project Completed:</span>{" "}
+                  {new Date(order.completionDate).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "short",
+                    day: "numeric",
+                  })}
                 </p>
               )}
             </div>
@@ -293,13 +318,13 @@ export default function OrderInvoicePage() {
               {/* Main Survey Line Item */}
               <tr>
                 <td className="py-3 pr-4">
-                  <div className="font-bold">{surveyTypeName}</div>
-                  <div className="text-[11px] text-zinc-600">
+                  <div className="font-bold text-sm">{surveyTypeName}</div>
+                  <div className="text-[11px] text-zinc-600 mt-0.5">
                     Professional surveying services performed at {order.address}, {order.city},{" "}
                     {order.state} {order.zip}
                   </div>
                 </td>
-                <td className="py-3 text-right font-mono font-bold">
+                <td className="py-3 text-right font-mono font-bold text-sm">
                   ${surveyPrice.toFixed(2)}
                 </td>
               </tr>
@@ -361,7 +386,7 @@ export default function OrderInvoicePage() {
         {/* Payment Remittance & Instructions */}
         <div className="mt-12 pt-6 border-t border-black text-xs space-y-1 text-zinc-700">
           <p className="font-bold text-black uppercase">Payment Terms & Remittance Instructions:</p>
-          <p>Please make all checks payable to: <span className="font-bold text-black">{order.spoke?.name || "MJS Land Surveying"}</span>.</p>
+          <p>Please make all checks payable to: <span className="font-bold text-black">{settings?.companyName || order.spoke?.name || "MJS Land Surveying"}</span>.</p>
           <p>If you have any questions concerning this invoice, please reference Order #{order.orderNumber}.</p>
           <p className="pt-2 italic text-black font-semibold">Thank you for your business!</p>
         </div>

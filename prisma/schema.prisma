@@ -349,5 +349,6 @@ model SystemSettings {
   email         String?
   logoUrl       String?
   themeColor    String   @default("#0f172a") // Tailwind slate-900
+  proposalTerms String?  @db.Text
   updatedAt     DateTime @updatedAt
 }
