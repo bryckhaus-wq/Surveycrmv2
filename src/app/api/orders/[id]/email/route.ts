@@ -111,6 +111,16 @@ export async function POST(
       ...(validAttachments.length > 0 && { attachments: validAttachments }),
     });
 
+    // Record email communication history in EmailLog
+    await prisma.emailLog.create({
+      data: {
+        subject: subject.trim(),
+        body: body.trim(),
+        sentTo: recipientEmail,
+        orderId: params.id,
+      },
+    });
+
     // Log the audit event
     await logAction(
       "ORDER",

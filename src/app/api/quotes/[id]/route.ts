@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { logAction } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +21,9 @@ export async function GET(
         spoke: true,
         documents: {
           orderBy: { uploadedAt: "desc" },
+        },
+        emailLogs: {
+          orderBy: { sentAt: "desc" },
         },
         convertedOrder: true,
       },
@@ -42,6 +48,9 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   try {
+    const session = await getServerSession(authOptions);
+    const userId = session?.user?.id || "SYSTEM";
+
     const body = await req.json();
     const {
       clientId,
@@ -52,6 +61,7 @@ export async function PUT(
       city,
       state,
       zip,
+      county,
       latitude,
       longitude,
       surveyTypeId,
@@ -65,6 +75,15 @@ export async function PUT(
       customScope,
     } = body;
 
+    const existingQuote = await prisma.quote.findUnique({
+      where: { id: params.id },
+      include: {
+        csr: true,
+        marketer: true,
+        spoke: true,
+      },
+    });
+
     const updated = await prisma.quote.update({
       where: { id: params.id },
       data: {
@@ -76,6 +95,7 @@ export async function PUT(
         ...(city !== undefined && { city }),
         ...(state !== undefined && { state }),
         ...(zip !== undefined && { zip }),
+        ...(county !== undefined && { county: county ? county.trim() : null }),
         ...(latitude !== undefined && {
           latitude: latitude !== null ? parseFloat(latitude) : null,
         }),
@@ -100,8 +120,74 @@ export async function PUT(
         marketer: true,
         client: true,
         spoke: true,
+        emailLogs: {
+          orderBy: { sentAt: "desc" },
+        },
       },
     });
+
+    // Record audit events if monitored fields changed
+    if (existingQuote) {
+      if (status !== undefined && status !== existingQuote.status) {
+        await logAction(
+          "QUOTE",
+          params.id,
+          "STATUS_CHANGE",
+          `Status changed from ${existingQuote.status} to ${status}`,
+          userId
+        );
+      }
+
+      if (marketerId !== undefined && marketerId !== existingQuote.marketerId) {
+        const oldStaff = existingQuote.marketer;
+        const newStaff = marketerId ? await prisma.user.findUnique({ where: { id: marketerId } }) : null;
+        await logAction(
+          "QUOTE",
+          params.id,
+          "UPDATE",
+          `Marketer changed from ${oldStaff?.name || "Unassigned"} to ${newStaff?.name || "Unassigned"}`,
+          userId
+        );
+      }
+
+      if (assignedCsrId !== undefined && assignedCsrId !== existingQuote.assignedCsrId) {
+        const oldStaff = existingQuote.csr;
+        const newStaff = assignedCsrId ? await prisma.user.findUnique({ where: { id: assignedCsrId } }) : null;
+        await logAction(
+          "QUOTE",
+          params.id,
+          "UPDATE",
+          `Assigned CSR changed from ${oldStaff?.name || "Unassigned"} to ${newStaff?.name || "Unassigned"}`,
+          userId
+        );
+      }
+
+      if (
+        customScope !== undefined &&
+        (customScope ? customScope.trim() : null) !== existingQuote.customScope
+      ) {
+        await logAction(
+          "QUOTE",
+          params.id,
+          "UPDATE",
+          `Scope of Work changed.\nOld: ${existingQuote.customScope || "None"}\nNew: ${customScope ? customScope.trim() : "None"}`,
+          userId
+        );
+      }
+
+      if (
+        clientEmail !== undefined &&
+        (clientEmail ? clientEmail.trim() : null) !== existingQuote.clientEmail
+      ) {
+        await logAction(
+          "QUOTE",
+          params.id,
+          "UPDATE",
+          `Client Email changed from ${existingQuote.clientEmail || "None"} to ${clientEmail || "None"}`,
+          userId
+        );
+      }
+    }
 
     return NextResponse.json(updated);
   } catch (error) {

@@ -49,6 +49,9 @@ export async function GET(
         drafter: true,
         checker: true,
         signingSurveyor: true,
+        emailLogs: {
+          orderBy: { sentAt: "desc" },
+        },
         quote: {
           include: {
             csr: true,
@@ -135,7 +138,15 @@ export async function PUT(
     // Fetch existing order prior to update for audit trail comparison
     const existingOrder = await prisma.order.findUnique({
       where: { id: params.id },
-      include: { assignedUser: true },
+      include: {
+        assignedUser: true,
+        marketer: true,
+        researcher: true,
+        fieldCrew: true,
+        drafter: true,
+        checker: true,
+        signingSurveyor: true,
+      },
     });
 
     const updatedOrder = await prisma.order.update({
@@ -243,11 +254,137 @@ export async function PUT(
         assignedUserId !== undefined &&
         assignedUserId !== existingOrder.assignedUserId
       ) {
+        const oldStaff = existingOrder.assignedUser;
+        const newStaff = updatedOrder.assignedUser;
         await logAction(
           "ORDER",
           params.id,
           "REASSIGNED",
-          `Assigned specialist changed to ${updatedOrder.assignedUser?.name || "Unassigned"}`,
+          `Assigned specialist changed from ${oldStaff?.name || "Unassigned"} to ${newStaff?.name || "Unassigned"}`,
+          session.user.id
+        );
+      }
+
+      if (marketerId !== undefined && marketerId !== existingOrder.marketerId) {
+        const oldStaff = existingOrder.marketer || (existingOrder.marketerId ? await prisma.user.findUnique({ where: { id: existingOrder.marketerId } }) : null);
+        const newStaff = marketerId ? await prisma.user.findUnique({ where: { id: marketerId } }) : null;
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `Marketer changed from ${oldStaff?.name || "Unassigned"} to ${newStaff?.name || "Unassigned"}`,
+          session.user.id
+        );
+      }
+
+      if (signingSurveyorId !== undefined && signingSurveyorId !== existingOrder.signingSurveyorId) {
+        const oldStaff = existingOrder.signingSurveyor || (existingOrder.signingSurveyorId ? await prisma.user.findUnique({ where: { id: existingOrder.signingSurveyorId } }) : null);
+        const newStaff = signingSurveyorId ? await prisma.user.findUnique({ where: { id: signingSurveyorId } }) : null;
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `Signing Surveyor changed from ${oldStaff?.name || "Unassigned"} to ${newStaff?.name || "Unassigned"}`,
+          session.user.id
+        );
+      }
+
+      if (researcherId !== undefined && researcherId !== existingOrder.researcherId) {
+        const oldStaff = existingOrder.researcher || (existingOrder.researcherId ? await prisma.user.findUnique({ where: { id: existingOrder.researcherId } }) : null);
+        const newStaff = researcherId ? await prisma.user.findUnique({ where: { id: researcherId } }) : null;
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `Researcher changed from ${oldStaff?.name || "Unassigned"} to ${newStaff?.name || "Unassigned"}`,
+          session.user.id
+        );
+      }
+
+      if (checkerId !== undefined && checkerId !== existingOrder.checkerId) {
+        const oldStaff = existingOrder.checker || (existingOrder.checkerId ? await prisma.user.findUnique({ where: { id: existingOrder.checkerId } }) : null);
+        const newStaff = checkerId ? await prisma.user.findUnique({ where: { id: checkerId } }) : null;
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `Checker changed from ${oldStaff?.name || "Unassigned"} to ${newStaff?.name || "Unassigned"}`,
+          session.user.id
+        );
+      }
+
+      if (drafterId !== undefined && drafterId !== existingOrder.drafterId) {
+        const oldStaff = existingOrder.drafter || (existingOrder.drafterId ? await prisma.user.findUnique({ where: { id: existingOrder.drafterId } }) : null);
+        const newStaff = drafterId ? await prisma.user.findUnique({ where: { id: drafterId } }) : null;
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `CAD Drafter changed from ${oldStaff?.name || "Unassigned"} to ${newStaff?.name || "Unassigned"}`,
+          session.user.id
+        );
+      }
+
+      if (fieldCrewId !== undefined && fieldCrewId !== existingOrder.fieldCrewId) {
+        const oldStaff = existingOrder.fieldCrew || (existingOrder.fieldCrewId ? await prisma.user.findUnique({ where: { id: existingOrder.fieldCrewId } }) : null);
+        const newStaff = fieldCrewId ? await prisma.user.findUnique({ where: { id: fieldCrewId } }) : null;
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `Field Crew changed from ${oldStaff?.name || "Unassigned"} to ${newStaff?.name || "Unassigned"}`,
+          session.user.id
+        );
+      }
+
+      if (
+        crewComments !== undefined &&
+        (crewComments ? crewComments.trim() : null) !== existingOrder.crewComments
+      ) {
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `Field Notes changed.\nOld: ${existingOrder.crewComments || "None"}\nNew: ${crewComments ? crewComments.trim() : "None"}`,
+          session.user.id
+        );
+      }
+
+      if (
+        specialInstructions !== undefined &&
+        (specialInstructions ? specialInstructions.trim() : null) !== existingOrder.specialInstructions
+      ) {
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `Special Instructions changed.\nOld: ${existingOrder.specialInstructions || "None"}\nNew: ${specialInstructions ? specialInstructions.trim() : "None"}`,
+          session.user.id
+        );
+      }
+
+      if (
+        internalDraftingNotes !== undefined &&
+        (internalDraftingNotes ? internalDraftingNotes.trim() : null) !== existingOrder.internalDraftingNotes
+      ) {
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `Internal Drafting Notes changed.\nOld: ${existingOrder.internalDraftingNotes || "None"}\nNew: ${internalDraftingNotes ? internalDraftingNotes.trim() : "None"}`,
+          session.user.id
+        );
+      }
+
+      if (
+        pointsOfInterest !== undefined &&
+        (pointsOfInterest ? pointsOfInterest.trim() : null) !== existingOrder.pointsOfInterest
+      ) {
+        await logAction(
+          "ORDER",
+          params.id,
+          "UPDATE",
+          `Points of Interest changed.\nOld: ${existingOrder.pointsOfInterest || "None"}\nNew: ${pointsOfInterest ? pointsOfInterest.trim() : "None"}`,
           session.user.id
         );
       }
@@ -272,13 +409,14 @@ export async function PUT(
 
       if (
         fieldNotes !== undefined &&
-        fieldNotes !== existingOrder.fieldNotes
+        fieldNotes !== existingOrder.fieldNotes &&
+        crewComments === undefined
       ) {
         await logAction(
           "ORDER",
           params.id,
           "NOTES_UPDATED",
-          "Field notes & observations updated",
+          `Field notes changed.\nOld: ${existingOrder.fieldNotes || "None"}\nNew: ${fieldNotes ? fieldNotes.trim() : "None"}`,
           session.user.id
         );
       }

@@ -230,20 +230,30 @@ export default function AddressAutocomplete({
           ? placeData.geometry.location.lng()
           : placeData.geometry?.location?.lng ?? placeData.location?.longitude ?? null;
 
+      const rawComponents =
+        placeData.address_components ||
+        (placeData.addressComponents || []).map((c: any) => ({
+          long_name: c.longText || c.long_name || "",
+          short_name: c.shortText || c.short_name || "",
+          types: c.types || [],
+        }));
+
+      const countyObj = rawComponents.find((c: any) =>
+        (c.types || []).includes("administrative_area_level_2")
+      );
+      const county = countyObj
+        ? (countyObj.long_name || countyObj.longText || "").replace(" County", "")
+        : "";
+
       const normalizedPlace = {
         ...placeData,
         place_id: placeId,
         formatted_address: selectedAddress,
         formattedAddress: selectedAddress,
         name: placeData.name || placeData.displayName?.text || selectedAddress,
-        address_components:
-          placeData.address_components ||
-          (placeData.addressComponents || []).map((c: any) => ({
-            long_name: c.longText || c.long_name || "",
-            short_name: c.shortText || c.short_name || "",
-            types: c.types || [],
-          })),
-        addressComponents: placeData.addressComponents || placeData.address_components,
+        county,
+        address_components: rawComponents,
+        addressComponents: rawComponents,
         location: {
           latitude: rawLat,
           longitude: rawLng,
@@ -263,6 +273,7 @@ export default function AddressAutocomplete({
       onPlaceSelected({
         formatted_address: selectedAddress,
         name: selectedAddress,
+        county: "",
         address_components: [],
       });
     }

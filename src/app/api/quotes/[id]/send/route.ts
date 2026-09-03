@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import nodemailer from "nodemailer";
 
 export const dynamic = "force-dynamic";
@@ -37,12 +38,14 @@ export async function POST(
     });
 
     const pdfBuffer = Buffer.from(pdfBase64, "base64");
+    const emailSubject = subject || "Survey Proposal from MJS Land Surveying";
+    const emailBody = message || "Please find attached the official survey proposal for your review.";
 
     await transporter.sendMail({
       from: fromAddress,
       to: toEmail,
-      subject: subject || "Survey Proposal from MJS Land Surveying",
-      text: message || "Please find attached the official survey proposal for your review.",
+      subject: emailSubject,
+      text: emailBody,
       attachments: [
         {
           filename: "Quote_Proposal.pdf",
@@ -50,6 +53,16 @@ export async function POST(
           contentType: "application/pdf",
         },
       ],
+    });
+
+    // Record email communication history in EmailLog
+    await prisma.emailLog.create({
+      data: {
+        subject: emailSubject,
+        body: emailBody,
+        sentTo: toEmail,
+        quoteId: params.id,
+      },
     });
 
     return NextResponse.json({

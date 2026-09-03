@@ -70,6 +70,7 @@ export async function POST(
         city: quote.city,
         state: quote.state,
         zip: quote.zip,
+        county: quote.county || null,
         latitude: quote.latitude || null,
         longitude: quote.longitude || null,
         marketerId: quote.marketerId || null,

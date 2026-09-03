@@ -74,6 +74,16 @@ interface AuditLogItem {
   createdAt: string;
 }
 
+interface EmailLogItem {
+  id: string;
+  subject: string;
+  body: string;
+  sentTo: string;
+  sentAt: string;
+  quoteId?: string | null;
+  orderId?: string | null;
+}
+
 interface ClientData {
   id: string;
   name: string;
@@ -182,6 +192,7 @@ interface OrderDetail {
     uploadedAt: string;
     s3Key: string;
   }>;
+  emailLogs?: EmailLogItem[];
   createdAt: string;
 }
 
@@ -1905,58 +1916,108 @@ export default function OrderDetailPage() {
         </div>
       </div>
 
-      {/* Activity History & Audit Timeline */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center">
-            <History className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
-            Activity History & Audit Timeline ({auditLogs.length})
-          </h2>
-        </div>
-
-        {auditLogs.length === 0 ? (
-          <p className="text-xs text-slate-500 dark:text-slate-400 italic py-2">
-            No audit events recorded for this order yet.
-          </p>
-        ) : (
-          <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
-            {auditLogs.map((log) => (
-              <div key={log.id} className="relative group">
-                <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-white dark:ring-slate-900" />
-
-                <div className="space-y-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-semibold text-xs text-slate-900 dark:text-slate-100">
-                      {log.user?.name || "System"}
-                    </span>
-                    {log.user?.role && (
-                      <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
-                        {log.user.role.replace("_", " ")}
+      {/* Collapsible Audit History */}
+      <details className="group bg-gray-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 mt-8 shadow-sm">
+        <summary className="cursor-pointer font-bold flex justify-between items-center text-gray-700 dark:text-slate-300 text-sm">
+          <div className="flex items-center space-x-2">
+            <History className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span>Audit History ({auditLogs.length})</span>
+          </div>
+          <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
+        </summary>
+        <div className="mt-4 space-y-2 text-sm whitespace-pre-wrap">
+          {auditLogs.length === 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic py-2">
+              No audit events recorded for this order yet.
+            </p>
+          ) : (
+            <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="relative group">
+                  <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-white dark:ring-slate-900" />
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                        {log.user?.name || "System"}
                       </span>
+                      {log.user?.role && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
+                          {log.user.role.replace("_", " ")}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                        {log.action}
+                      </span>
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-auto">
+                        {new Date(log.createdAt).toLocaleDateString()} at{" "}
+                        {new Date(log.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    {log.details && (
+                      <p className="text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 mt-1 whitespace-pre-wrap font-sans">
+                        {log.details}
+                      </p>
                     )}
-                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
-                      {log.action}
-                    </span>
-                    <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-auto">
-                      {new Date(log.createdAt).toLocaleDateString()} at{" "}
-                      {new Date(log.createdAt).toLocaleTimeString([], {
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </details>
+
+      {/* Collapsible Email History */}
+      <details className="group bg-gray-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 mt-4 shadow-sm">
+        <summary className="cursor-pointer font-bold flex justify-between items-center text-gray-700 dark:text-slate-300 text-sm">
+          <div className="flex items-center space-x-2">
+            <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span>Email History ({order.emailLogs?.length || 0})</span>
+          </div>
+          <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
+        </summary>
+        <div className="mt-4 space-y-3 text-sm">
+          {!order.emailLogs || order.emailLogs.length === 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic py-2">
+              No outgoing emails logged for this order yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {order.emailLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="bg-white dark:bg-slate-800/60 p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 space-y-2 text-xs"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        To: {log.sentTo}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                      {new Date(log.sentAt).toLocaleDateString()} at{" "}
+                      {new Date(log.sentAt).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </span>
                   </div>
-
-                  {log.details && (
-                    <p className="text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/40 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800 mt-1">
-                      {log.details}
-                    </p>
-                  )}
+                  <div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 block mb-1">
+                      {log.subject}
+                    </span>
+                    <div className="text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded border border-slate-100 dark:border-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
+                      {log.body}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </details>
 
       {/* Email Client Modal */}
       {isEmailModalOpen && (

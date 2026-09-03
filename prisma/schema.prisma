@@ -112,6 +112,7 @@ model Quote {
   city             String
   state            String
   zip              String
+  county           String?
   latitude         Float?
   longitude        Float?
   surveyTypeId     String
@@ -129,6 +130,7 @@ model Quote {
   customScope      String?     @db.Text
   convertedOrder   Order?
   documents        Document[]
+  emailLogs        EmailLog[]
   followUpSentAt   DateTime?
   createdAt        DateTime    @default(now())
 }
@@ -206,6 +208,7 @@ model Order {
   documents         Document[]
   attachments       Attachment[]
   timesheets        Timesheet[]
+  emailLogs         EmailLog[]
   createdAt         DateTime    @default(now())
 }
 
@@ -324,4 +327,16 @@ model EmailTemplate {
   subject   String
   body      String   @db.Text
   updatedAt DateTime @updatedAt
+}
+
+model EmailLog {
+  id        String   @id @default(cuid())
+  subject   String
+  body      String   @db.Text
+  sentTo    String
+  sentAt    DateTime @default(now())
+  quoteId   String?
+  orderId   String?
+  quote     Quote?   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  order     Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }

@@ -25,6 +25,7 @@ import {
   Send,
   X,
   Loader2,
+  History,
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
 import { generateQuotePDF, buildQuotePDFDoc } from "@/lib/pdfGenerator";
@@ -46,6 +47,32 @@ interface SpokeOption {
   state?: string | null;
 }
 
+interface AuditLogItem {
+  id: string;
+  entityType: string;
+  entityId: string;
+  action: string;
+  details: string | null;
+  userId: string;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+  } | null;
+  createdAt: string;
+}
+
+interface EmailLogItem {
+  id: string;
+  subject: string;
+  body: string;
+  sentTo: string;
+  sentAt: string;
+  quoteId?: string | null;
+  orderId?: string | null;
+}
+
 interface QuoteDetail {
   id: string;
   quoteNumber: number;
@@ -58,6 +85,7 @@ interface QuoteDetail {
   city: string;
   state: string;
   zip: string;
+  county?: string | null;
   latitude: number | null;
   longitude: number | null;
   price: string | number;
@@ -80,6 +108,7 @@ interface QuoteDetail {
     uploadedAt: string;
     s3Key: string;
   }>;
+  emailLogs?: EmailLogItem[];
 }
 
 export default function QuoteDetailPage() {
@@ -93,6 +122,7 @@ export default function QuoteDetailPage() {
   const [spokeId, setSpokeId] = useState<string>("");
   const [clientEmail, setClientEmail] = useState<string>("");
   const [savingEmail, setSavingEmail] = useState(false);
+  const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [converting, setConverting] = useState(false);
   const [savingScope, setSavingScope] = useState(false);
@@ -119,8 +149,21 @@ export default function QuoteDetailPage() {
       fetchQuote();
       fetchUsers();
       fetchSpokes();
+      fetchAuditLogs();
     }
   }, [id]);
+
+  const fetchAuditLogs = async () => {
+    try {
+      const res = await fetch(`/api/quotes/${id}/audit`);
+      if (res.ok) {
+        const data = await res.json();
+        setAuditLogs(data);
+      }
+    } catch (err) {
+      console.error("Failed to load audit logs:", err);
+    }
+  };
 
   const fetchUsers = async () => {
     try {
@@ -274,6 +317,7 @@ export default function QuoteDetailPage() {
       }
       const updated = await res.json();
       setQuote(updated);
+      fetchAuditLogs();
       setSuccessMessage("Client email updated successfully.");
     } catch (err: any) {
       setError(err.message || "Failed to update client email.");
@@ -292,6 +336,7 @@ export default function QuoteDetailPage() {
       });
       if (res.ok) {
         fetchQuote();
+        fetchAuditLogs();
       }
     } catch (err) {
       console.error("Failed to assign spoke branch:", err);
@@ -320,6 +365,7 @@ export default function QuoteDetailPage() {
 
       const updated = await res.json();
       setQuote(updated);
+      fetchAuditLogs();
       setSuccessMessage("Scope of work and terms updated successfully.");
     } catch (err: any) {
       setError(err.message || "Failed to update scope.");
@@ -386,6 +432,7 @@ export default function QuoteDetailPage() {
       });
       if (res.ok) {
         fetchQuote();
+        fetchAuditLogs();
       }
     } catch (err) {
       console.error("Failed to update status:", err);
@@ -401,6 +448,7 @@ export default function QuoteDetailPage() {
       });
       if (res.ok) {
         fetchQuote();
+        fetchAuditLogs();
       }
     } catch (err) {
       console.error("Failed to assign marketer:", err);
@@ -471,6 +519,8 @@ export default function QuoteDetailPage() {
 
       setIsEmailModalOpen(false);
       setSuccessMessage(`Proposal successfully emailed to ${emailTo.trim()}`);
+      fetchQuote();
+      fetchAuditLogs();
     } catch (err: any) {
       console.error("Email send error:", err);
       setEmailModalError(err.message || "Failed to send proposal via email.");
@@ -753,7 +803,7 @@ export default function QuoteDetailPage() {
                 </span>
                 <span className="text-base font-medium text-slate-900 dark:text-slate-100">{quote.address}</span>
               </div>
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <div>
                   <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
                     City
@@ -771,6 +821,12 @@ export default function QuoteDetailPage() {
                     Zip Code
                   </span>
                   <span className="text-slate-800 dark:text-slate-200">{quote.zip}</span>
+                </div>
+                <div>
+                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                    County
+                  </span>
+                  <span className="text-slate-800 dark:text-slate-200">{quote.county || <span className="text-slate-400 dark:text-slate-600 italic">None</span>}</span>
                 </div>
               </div>
               {(quote.latitude !== null || quote.longitude !== null) && (
@@ -1036,6 +1092,109 @@ export default function QuoteDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Collapsible Audit History */}
+      <details className="group bg-gray-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 mt-8 shadow-sm">
+        <summary className="cursor-pointer font-bold flex justify-between items-center text-gray-700 dark:text-slate-300 text-sm">
+          <div className="flex items-center space-x-2">
+            <History className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span>Audit History ({auditLogs.length})</span>
+          </div>
+          <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
+        </summary>
+        <div className="mt-4 space-y-2 text-sm whitespace-pre-wrap">
+          {auditLogs.length === 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic py-2">
+              No audit events recorded for this quote yet.
+            </p>
+          ) : (
+            <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200 dark:before:bg-slate-800">
+              {auditLogs.map((log) => (
+                <div key={log.id} className="relative group">
+                  <div className="absolute -left-6 top-1 w-3 h-3 rounded-full bg-blue-500 ring-4 ring-white dark:ring-slate-900" />
+                  <div className="space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-semibold text-xs text-slate-900 dark:text-slate-100">
+                        {log.user?.name || "System"}
+                      </span>
+                      {log.user?.role && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 uppercase">
+                          {log.user.role.replace("_", " ")}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-900">
+                        {log.action}
+                      </span>
+                      <span className="text-[11px] text-slate-400 dark:text-slate-500 ml-auto">
+                        {new Date(log.createdAt).toLocaleDateString()} at{" "}
+                        {new Date(log.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span>
+                    </div>
+                    {log.details && (
+                      <p className="text-xs text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-800/60 p-2.5 rounded-lg border border-slate-200 dark:border-slate-800 mt-1 whitespace-pre-wrap font-sans">
+                        {log.details}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </details>
+
+      {/* Collapsible Email History */}
+      <details className="group bg-gray-50 dark:bg-slate-900 p-4 rounded-xl border border-slate-200 dark:border-slate-800 mt-4 shadow-sm">
+        <summary className="cursor-pointer font-bold flex justify-between items-center text-gray-700 dark:text-slate-300 text-sm">
+          <div className="flex items-center space-x-2">
+            <Mail className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span>Email History ({quote.emailLogs?.length || 0})</span>
+          </div>
+          <span className="group-open:rotate-180 transition-transform text-xs">▼</span>
+        </summary>
+        <div className="mt-4 space-y-3 text-sm">
+          {!quote.emailLogs || quote.emailLogs.length === 0 ? (
+            <p className="text-xs text-slate-500 dark:text-slate-400 italic py-2">
+              No outgoing proposal emails logged for this quote yet.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {quote.emailLogs.map((log) => (
+                <div
+                  key={log.id}
+                  className="bg-white dark:bg-slate-800/60 p-3.5 rounded-lg border border-slate-200 dark:border-slate-800 space-y-2 text-xs"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700/60 pb-2">
+                    <div className="flex items-center space-x-2">
+                      <span className="font-bold text-slate-900 dark:text-slate-100">
+                        To: {log.sentTo}
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-slate-400 dark:text-slate-500">
+                      {new Date(log.sentAt).toLocaleDateString()} at{" "}
+                      {new Date(log.sentAt).toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="font-bold text-slate-800 dark:text-slate-200 block mb-1">
+                      {log.subject}
+                    </span>
+                    <div className="text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60 p-2.5 rounded border border-slate-100 dark:border-slate-800 whitespace-pre-wrap font-sans leading-relaxed">
+                      {log.body}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </details>
 
       {/* Email Proposal Modal */}
       {isEmailModalOpen && (

@@ -75,6 +75,7 @@ export default function NewQuotePage() {
   const [city, setCity] = useState("");
   const [state, setState] = useState("");
   const [zip, setZip] = useState("");
+  const [county, setCounty] = useState("");
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [surveyTypeId, setSurveyTypeId] = useState("");
@@ -199,6 +200,14 @@ export default function NewQuotePage() {
     let locality = "";
     let adminArea = "";
     let postalCode = "";
+    let countyName = "";
+
+    const countyObj = components.find((c: any) =>
+      (c.types || []).includes("administrative_area_level_2")
+    );
+    if (countyObj) {
+      countyName = (countyObj.long_name || countyObj.longText || "").replace(" County", "");
+    }
 
     for (const component of components) {
       const types = component.types || [];
@@ -227,6 +236,7 @@ export default function NewQuotePage() {
     if (locality) setCity(locality);
     if (adminArea) setState(adminArea);
     if (postalCode) setZip(postalCode);
+    if (countyName || place.county) setCounty(countyName || place.county || "");
 
     const lat =
       typeof place.geometry?.location?.lat === "function"
@@ -269,6 +279,7 @@ export default function NewQuotePage() {
           city,
           state,
           zip,
+          county: county || null,
           latitude,
           longitude,
           surveyTypeId,
@@ -516,7 +527,7 @@ export default function NewQuotePage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                   State <span className="text-rose-500">*</span>
@@ -542,6 +553,19 @@ export default function NewQuotePage() {
                   value={zip}
                   onChange={(e) => setZip(e.target.value)}
                   placeholder="12345"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  County
+                </label>
+                <input
+                  type="text"
+                  value={county}
+                  onChange={(e) => setCounty(e.target.value)}
+                  placeholder="e.g. Orange"
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-sm focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
