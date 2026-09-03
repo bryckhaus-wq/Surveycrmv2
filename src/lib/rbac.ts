@@ -5,6 +5,7 @@ export const ROLES = {
   FIELD_WORKER: "FIELD_WORKER",
   SIGNING_SURVEYOR: "SIGNING_SURVEYOR",
   MARKETER: "MARKETER",
+  RESEARCHER: "RESEARCHER",
 } as const;
 
 export const ADMIN = ROLES.ADMIN;
@@ -13,6 +14,7 @@ export const DRAFTER = ROLES.DRAFTER;
 export const FIELD_WORKER = ROLES.FIELD_WORKER;
 export const SIGNING_SURVEYOR = ROLES.SIGNING_SURVEYOR;
 export const MARKETER = ROLES.MARKETER;
+export const RESEARCHER = ROLES.RESEARCHER;
 
 export function hasFinancialAccess(role?: string | null): boolean {
   if (!role) return false;

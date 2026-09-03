@@ -38,6 +38,8 @@ import {
   Briefcase,
   Layers,
   Scale,
+  PauseCircle,
+  Lock,
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
 
@@ -89,6 +91,19 @@ interface StaffUser {
   email?: string;
 }
 
+interface SpokeOption {
+  id: string;
+  name: string;
+  shortName: string;
+  state?: string | null;
+}
+
+interface SurveyTypeOption {
+  id: string;
+  name: string;
+  defaultPrice?: number | string;
+}
+
 interface OrderDetail {
   id: string;
   orderNumber: string;
@@ -99,8 +114,17 @@ interface OrderDetail {
   city: string;
   state: string;
   zip: string;
-  status: "FIELD_PENDING" | "DRAFTING" | "REVIEW" | "COMPLETED" | "CANCELLED" | string;
+  status:
+    | "FIELD_PENDING"
+    | "DRAFTING"
+    | "REVIEW"
+    | "COMPLETED"
+    | "CANCELLED"
+    | "HOLD_REVIEW"
+    | "HOLD_CLIENT"
+    | string;
   fieldNotes: string | null;
+  orderedBy?: string | null;
   fieldDueDate?: string | null;
   clientDueDate?: string | null;
   internalDueDate?: string | null;
@@ -112,9 +136,11 @@ interface OrderDetail {
   lot?: string | null;
   block?: string | null;
   subdivision?: string | null;
+  surveyTypeId?: string | null;
   surveyType?: { id: string; name: string } | null;
   surveyTypeCustom?: string | null;
   specialInstructions?: string | null;
+  internalDraftingNotes?: string | null;
   isFhaVaLoan?: boolean;
   crewComments?: string | null;
   pointsOfInterest?: string | null;
@@ -129,12 +155,15 @@ interface OrderDetail {
   fieldCrewId?: string | null;
   drafterId?: string | null;
   checkerId?: string | null;
+  signingSurveyorId?: string | null;
   assignedUserId?: string | null;
   marketerId?: string | null;
+  spokeId?: string | null;
   researcher?: StaffUser | null;
   fieldCrew?: StaffUser | null;
   drafter?: StaffUser | null;
   checker?: StaffUser | null;
+  signingSurveyor?: StaffUser | null;
   assignedUser?: StaffUser | null;
   marketer?: StaffUser | null;
   spoke?: { id: string; name: string; shortName: string } | null;
@@ -162,8 +191,16 @@ export default function OrderDetailPage() {
   const { data: session } = useSession();
   const canViewFinancials = hasFinancialAccess(session?.user?.role || role);
 
+  const userRole = (session?.user?.role || role) as string;
+  const canEditDraftingNotes =
+    userRole === "ADMIN" ||
+    userRole === "DRAFTER" ||
+    userRole === "SIGNING_SURVEYOR";
+
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [users, setUsers] = useState<StaffUser[]>([]);
+  const [spokes, setSpokes] = useState<SpokeOption[]>([]);
+  const [surveyTypes, setSurveyTypes] = useState<SurveyTypeOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingOrder, setSavingOrder] = useState(false);
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
@@ -175,8 +212,13 @@ export default function OrderDetailPage() {
 
   // Form Edit State
   const [formData, setFormData] = useState({
+    spokeId: "",
+    surveyTypeId: "",
     surveyType: "",
+    orderedBy: "",
+    clientEmail: "",
     specialInstructions: "",
+    internalDraftingNotes: "",
     isFhaVaLoan: false,
     clientDueDate: "",
     internalDueDate: "",
@@ -197,6 +239,7 @@ export default function OrderDetailPage() {
     fieldCrewId: "",
     drafterId: "",
     checkerId: "",
+    signingSurveyorId: "",
     assignedUserId: "",
     marketerId: "",
     surveyPrice: 0,
@@ -234,8 +277,13 @@ export default function OrderDetailPage() {
 
   const populateFormState = (data: OrderDetail) => {
     setFormData({
+      spokeId: data.spokeId || data.spoke?.id || "",
+      surveyTypeId: data.surveyTypeId || data.surveyType?.id || "",
       surveyType: data.surveyTypeCustom || data.surveyType?.name || "",
+      orderedBy: data.orderedBy || "",
+      clientEmail: data.client?.email || data.quote?.client?.email || "",
       specialInstructions: data.specialInstructions || "",
+      internalDraftingNotes: data.internalDraftingNotes || "",
       isFhaVaLoan: Boolean(data.isFhaVaLoan),
       clientDueDate: formatDateForInput(data.clientDueDate),
       internalDueDate: formatDateForInput(data.internalDueDate),
@@ -256,6 +304,7 @@ export default function OrderDetailPage() {
       fieldCrewId: data.fieldCrewId || "",
       drafterId: data.drafterId || "",
       checkerId: data.checkerId || "",
+      signingSurveyorId: data.signingSurveyorId || "",
       assignedUserId: data.assignedUserId || "",
       marketerId: data.marketerId || "",
       surveyPrice: data.surveyPrice ?? 0,
@@ -275,10 +324,29 @@ export default function OrderDetailPage() {
     if (id) {
       fetchOrder();
       fetchUsers();
+      fetchSpokes();
+      fetchSurveyTypes();
       fetchAttachments();
       fetchAuditLogs();
     }
   }, [id]);
+
+  // Auto-set Spoke to New York branch if state is NY / New York
+  useEffect(() => {
+    if (!formData.state || spokes.length === 0) return;
+    const st = formData.state.trim().toLowerCase();
+    if (st === "ny" || st === "new york") {
+      const nySpoke = spokes.find(
+        (s) =>
+          s.name.toLowerCase().includes("new york") ||
+          s.shortName.toLowerCase() === "ny" ||
+          (s.state && s.state.toLowerCase() === "ny")
+      );
+      if (nySpoke && formData.spokeId !== nySpoke.id) {
+        setFormData((prev) => ({ ...prev, spokeId: nySpoke.id }));
+      }
+    }
+  }, [formData.state, spokes]);
 
   const fetchOrder = async () => {
     try {
@@ -305,6 +373,30 @@ export default function OrderDetailPage() {
       if (res.ok) {
         const data = await res.json();
         setUsers(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchSpokes = async () => {
+    try {
+      const res = await fetch("/api/admin/spokes");
+      if (res.ok) {
+        const data = await res.json();
+        setSpokes(data);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchSurveyTypes = async () => {
+    try {
+      const res = await fetch("/api/admin/survey-types");
+      if (res.ok) {
+        const data = await res.json();
+        setSurveyTypes(data);
       }
     } catch (err) {
       console.error(err);
@@ -355,10 +447,13 @@ export default function OrderDetailPage() {
         ...formData,
         surveyPrice: parseFloat(String(formData.surveyPrice)) || 0,
         miscAmt: parseFloat(String(formData.miscAmt)) || 0,
-        miscAmtDescription: formData.miscAmtDescription ? formData.miscAmtDescription.trim() : null,
+        miscAmtDescription: formData.miscAmtDescription
+          ? formData.miscAmtDescription.trim()
+          : null,
         discountAmt: parseFloat(String(formData.discountAmt)) || 0,
         depositPaid: parseFloat(String(formData.depositPaid)) || 0,
-        finalPaymentReceived: parseFloat(String(formData.finalPaymentReceived)) || 0,
+        finalPaymentReceived:
+          parseFloat(String(formData.finalPaymentReceived)) || 0,
         taxRate: parseFloat(String(formData.taxRate)) || 0,
         ...extraPayload,
       };
@@ -401,7 +496,9 @@ export default function OrderDetailPage() {
       setOrder(updated);
       populateFormState(updated);
       fetchAuditLogs();
-      setSuccessMessage(`Order status updated to ${newStatus.replace("_", " ")}`);
+      setSuccessMessage(
+        `Order status updated to ${newStatus.replace("_", " ")}`
+      );
     } catch (err: any) {
       setError(err.message || "Failed to update order status.");
     }
@@ -461,13 +558,19 @@ export default function OrderDetailPage() {
     const clientName =
       currentOrder.client?.name || currentOrder.clientName || "";
     const clientEmail =
-      currentOrder.client?.email || currentOrder.quote?.client?.email || "";
+      formData.clientEmail ||
+      currentOrder.client?.email ||
+      currentOrder.quote?.client?.email ||
+      "";
     const clientPhone =
       currentOrder.client?.phone || currentOrder.quote?.client?.phone || "";
     const orderId = currentOrder.orderNumber || currentOrder.id || "";
     const propertyAddress = currentOrder.address || "";
     const surveyType =
-      currentOrder.surveyTypeCustom || currentOrder.surveyType?.name || "";
+      formData.surveyType ||
+      currentOrder.surveyTypeCustom ||
+      currentOrder.surveyType?.name ||
+      "";
     const price = currentOrder.quote?.price
       ? `$${Number(currentOrder.quote.price).toFixed(2)}`
       : "";
@@ -508,7 +611,7 @@ export default function OrderDetailPage() {
           `Update regarding your survey project for ${order.address} (Order #${order.orderNumber})`
         );
         setEmailBody(
-          `Hello ${order.client?.name || order.clientName},\n\nWe are writing to provide you with an update regarding your survey project for ${order.address}.\n\nOrder Details:\n- Order #: ${order.orderNumber}\n- Survey Type: ${order.surveyTypeCustom || order.surveyType?.name}\n- Branch: ${order.spoke?.name || ""}\n\nPlease feel free to reply directly to this email if you have any questions.\n\nBest regards,\nMJS Land Surveying Team`
+          `Hello ${order.client?.name || order.clientName},\n\nWe are writing to provide you with an update regarding your survey project for ${order.address}.\n\nOrder Details:\n- Order #: ${order.orderNumber}\n- Survey Type: ${formData.surveyType || order.surveyTypeCustom || order.surveyType?.name}\n- Branch: ${order.spoke?.name || ""}\n\nPlease feel free to reply directly to this email if you have any questions.\n\nBest regards,\nMJS Land Surveying Team`
         );
       }
     } catch (err: any) {
@@ -590,7 +693,8 @@ export default function OrderDetailPage() {
   const numericMiscAmt = Number(formData.miscAmt) || 0;
   const numericDiscountAmt = Number(formData.discountAmt) || 0;
   const numericDepositPaid = Number(formData.depositPaid) || 0;
-  const numericFinalPaymentReceived = Number(formData.finalPaymentReceived) || 0;
+  const numericFinalPaymentReceived =
+    Number(formData.finalPaymentReceived) || 0;
   const balanceDue =
     numericSurveyPrice +
     numericMiscAmt -
@@ -617,6 +721,20 @@ export default function OrderDetailPage() {
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-blue-100 dark:bg-blue-950/60 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
             <FileCheck className="w-3.5 h-3.5 mr-1" />
             SURVEYOR REVIEW
+          </span>
+        );
+      case "HOLD_REVIEW":
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-700">
+            <PauseCircle className="w-3.5 h-3.5 mr-1 text-amber-600" />
+            HOLD - REVIEW
+          </span>
+        );
+      case "HOLD_CLIENT":
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border border-orange-300 dark:border-orange-700">
+            <PauseCircle className="w-3.5 h-3.5 mr-1 text-orange-600" />
+            HOLD - CLIENT
           </span>
         );
       case "COMPLETED":
@@ -694,7 +812,7 @@ export default function OrderDetailPage() {
             type="button"
             onClick={() => handleSaveAll()}
             disabled={savingOrder}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+            className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 disabled:opacity-50 cursor-pointer"
           >
             {savingOrder ? (
               <>
@@ -785,20 +903,68 @@ export default function OrderDetailPage() {
             </h2>
 
             <div className="space-y-3">
-              {/* Survey Type */}
+              {/* Spoke / Branch Selection Dropdown */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                  Operating Branch (Spoke)
+                </label>
+                <select
+                  value={formData.spokeId}
+                  onChange={(e) => handleInputChange("spokeId", e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Select Branch / Spoke --</option>
+                  {spokes.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} ({s.shortName})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Dynamic Survey Type Select Dropdown */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
                   Survey Type
                 </label>
-                <input
-                  type="text"
-                  value={formData.surveyType}
-                  onChange={(e) =>
-                    handleInputChange("surveyType", e.target.value)
+                <select
+                  value={
+                    formData.surveyTypeId ||
+                    surveyTypes.find((st) => st.name === formData.surveyType)
+                      ?.id ||
+                    ""
                   }
-                  placeholder="e.g. Boundary Survey, ALTA/NSPS, Topographic"
+                  onChange={(e) => {
+                    const selectedId = e.target.value;
+                    const selectedST = surveyTypes.find(
+                      (st) => st.id === selectedId
+                    );
+                    handleInputChange("surveyTypeId", selectedId);
+                    if (selectedST) {
+                      handleInputChange("surveyType", selectedST.name);
+                      if (
+                        !formData.surveyPrice ||
+                        formData.surveyPrice === 0
+                      ) {
+                        handleInputChange(
+                          "surveyPrice",
+                          Number(selectedST.defaultPrice) || 0
+                        );
+                      }
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                >
+                  <option value="">-- Select Survey Type --</option>
+                  {surveyTypes.map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.name}{" "}
+                      {st.defaultPrice
+                        ? `($${Number(st.defaultPrice).toFixed(2)})`
+                        : ""}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               {/* FHA/VA Loan Checkbox */}
@@ -900,17 +1066,49 @@ export default function OrderDetailPage() {
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
             <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3 uppercase tracking-wider">
               <MapPin className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
-              Property Details
+              Property & Client Details
             </h2>
 
             <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Client Name
+                  </label>
+                  <div className="px-3 py-2 bg-slate-100 dark:bg-slate-800/80 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">
+                    {order.clientName}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                    Ordered By
+                  </label>
+                  <input
+                    type="text"
+                    value={formData.orderedBy}
+                    onChange={(e) =>
+                      handleInputChange("orderedBy", e.target.value)
+                    }
+                    placeholder="e.g. Closing Officer / Agent Name"
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Client Name
+                  Client Email
                 </label>
-                <div className="px-3 py-2 bg-slate-100 dark:bg-slate-800/80 rounded-lg text-xs font-semibold text-slate-900 dark:text-slate-100">
-                  {order.clientName}
-                </div>
+                <input
+                  type="email"
+                  value={formData.clientEmail}
+                  onChange={(e) =>
+                    handleInputChange("clientEmail", e.target.value)
+                  }
+                  placeholder="client@example.com"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
 
               <div>
@@ -947,6 +1145,7 @@ export default function OrderDetailPage() {
                     type="text"
                     value={formData.state}
                     onChange={(e) => handleInputChange("state", e.target.value)}
+                    placeholder="NY"
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
@@ -1079,8 +1278,18 @@ export default function OrderDetailPage() {
                   icon: FileCheck,
                 },
                 {
+                  key: "HOLD_REVIEW",
+                  label: "Hold - Review Pending",
+                  icon: PauseCircle,
+                },
+                {
+                  key: "HOLD_CLIENT",
+                  label: "Hold - Awaiting Client",
+                  icon: PauseCircle,
+                },
+                {
                   key: "COMPLETED",
-                  label: "4. Completed / Signed Off",
+                  label: "Completed / Signed Off",
                   icon: CheckCircle2,
                 },
               ].map((step) => {
@@ -1119,9 +1328,9 @@ export default function OrderDetailPage() {
                     handleUpdateStatus("CANCELLED");
                   }
                 }}
-                className={`w-full flex items-center justify-center space-x-2 p-2.5 rounded-lg text-xs font-bold transition-all shadow-sm ${
+                className={`w-full flex items-center justify-center space-x-2 p-2.5 rounded-lg text-xs font-bold transition-all shadow-sm cursor-pointer ${
                   order.status === "CANCELLED"
-                    ? "bg-rose-700 text-white cursor-default ring-2 ring-rose-400"
+                    ? "bg-rose-700 text-white ring-2 ring-rose-400"
                     : "bg-rose-600 hover:bg-rose-700 text-white"
                 }`}
               >
@@ -1206,10 +1415,10 @@ export default function OrderDetailPage() {
                 </select>
               </div>
 
-              {/* Checker / Reviewer */}
+              {/* Checker */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Checker / Signing Surveyor
+                  Checker
                 </label>
                 <select
                   value={formData.checkerId}
@@ -1227,10 +1436,31 @@ export default function OrderDetailPage() {
                 </select>
               </div>
 
+              {/* Signing Surveyor */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Signing Surveyor
+                </label>
+                <select
+                  value={formData.signingSurveyorId}
+                  onChange={(e) =>
+                    handleInputChange("signingSurveyorId", e.target.value)
+                  }
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-800 dark:text-slate-200 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">-- Unassigned Signing Surveyor --</option>
+                  {users.map((u) => (
+                    <option key={u.id} value={u.id}>
+                      {u.name} ({u.role})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Marketer */}
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                  Marketer
+                  Marketer (Commission)
                 </label>
                 <select
                   value={formData.marketerId}
@@ -1393,7 +1623,7 @@ export default function OrderDetailPage() {
                   href={`/orders/${order.id}/invoice`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full inline-flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors"
+                  className="w-full inline-flex items-center justify-center space-x-2 px-4 py-2.5 bg-slate-800 hover:bg-slate-900 dark:bg-slate-700 dark:hover:bg-slate-600 text-white text-xs font-bold rounded-lg shadow-sm transition-colors cursor-pointer"
                 >
                   <Receipt className="w-4 h-4 text-emerald-400" />
                   <span>Build PDF Invoice</span>
@@ -1427,6 +1657,41 @@ export default function OrderDetailPage() {
                     handleInputChange("completionDate", e.target.value)
                   }
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Internal Drafting Notes (Permission-Restricted) */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center">
+                    {!canEditDraftingNotes && (
+                      <Lock className="w-3 h-3 mr-1 text-slate-400" />
+                    )}
+                    Internal Drafting Notes
+                  </label>
+                  {!canEditDraftingNotes && (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-semibold px-1.5 py-0.2 bg-amber-50 dark:bg-amber-950/60 rounded border border-amber-200 dark:border-amber-900">
+                      Restricted (Drafter/Surveyor/Admin)
+                    </span>
+                  )}
+                </div>
+                <textarea
+                  rows={3}
+                  value={formData.internalDraftingNotes}
+                  disabled={!canEditDraftingNotes}
+                  onChange={(e) =>
+                    handleInputChange("internalDraftingNotes", e.target.value)
+                  }
+                  placeholder={
+                    canEditDraftingNotes
+                      ? "Internal CAD standards, title exceptions, drafting discrepancies..."
+                      : "Internal drafting notes restricted to CAD Drafters, Surveyors, and Admins."
+                  }
+                  className={`w-full p-2.5 rounded-lg text-xs font-sans border transition-colors ${
+                    canEditDraftingNotes
+                      ? "bg-slate-50 dark:bg-slate-800 border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      : "bg-slate-100 dark:bg-slate-800/40 border-slate-200 dark:border-slate-800 text-slate-500 cursor-not-allowed opacity-80"
+                  }`}
                 />
               </div>
 
@@ -1683,7 +1948,9 @@ export default function OrderDetailPage() {
                     Recipient
                   </span>
                   <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs text-slate-800 dark:text-slate-200 font-mono">
-                    {order.client?.email || order.clientName}
+                    {formData.clientEmail ||
+                      order.client?.email ||
+                      order.clientName}
                   </div>
                 </div>
 
@@ -1718,7 +1985,8 @@ export default function OrderDetailPage() {
                 {/* Document Attachments Checkbox Section */}
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
-                    Include Attachments ({order.documents?.length || 0} Available)
+                    Include Attachments ({order.documents?.length || 0}{" "}
+                    Available)
                   </label>
                   {order.documents && order.documents.length > 0 ? (
                     <div className="max-h-36 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-lg divide-y divide-slate-100 dark:divide-slate-800 bg-slate-50 dark:bg-slate-800/50 p-2 space-y-1">

@@ -63,6 +63,7 @@ export async function POST(
           marketerId: quote.marketerId || null,
           spokeId: quote.spokeId || null,
           surveyTypeId: quote.surveyTypeId,
+          surveyPrice: Number(quote.price) || 0,
           status: "FIELD_PENDING",
         },
         include: {

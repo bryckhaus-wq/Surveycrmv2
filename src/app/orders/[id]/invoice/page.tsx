@@ -9,6 +9,7 @@ interface OrderData {
   id: string;
   orderNumber: string;
   clientName: string;
+  orderedBy?: string | null;
   address: string;
   city: string;
   state: string;
@@ -205,6 +206,11 @@ export default function OrderInvoicePage() {
             </h3>
             <div className="space-y-0.5">
               <p className="font-bold text-sm">{order.client?.name || order.clientName}</p>
+              {order.orderedBy && (
+                <p className="text-xs text-zinc-700">
+                  <span className="font-semibold text-black">Ordered By:</span> {order.orderedBy}
+                </p>
+              )}
               {order.client?.address && <p>{order.client.address}</p>}
               {order.client?.phone && <p>Phone: {order.client.phone}</p>}
               {order.client?.email && <p>Email: {order.client.email}</p>}

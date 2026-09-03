@@ -48,6 +48,7 @@ export async function GET(
         fieldCrew: true,
         drafter: true,
         checker: true,
+        signingSurveyor: true,
         quote: {
           include: {
             csr: true,
@@ -89,12 +90,15 @@ export async function PUT(
       fieldNotes,
       assignedUserId,
       marketerId,
+      spokeId,
       clientName,
+      clientEmail,
       address,
       city,
       state,
       zip,
       clientId,
+      orderedBy,
       fieldDueDate,
       clientDueDate,
       internalDueDate,
@@ -110,6 +114,7 @@ export async function PUT(
       surveyTypeId,
       surveyTypeCustom,
       specialInstructions,
+      internalDraftingNotes,
       isFhaVaLoan,
       crewComments,
       pointsOfInterest,
@@ -124,6 +129,7 @@ export async function PUT(
       fieldCrewId,
       drafterId,
       checkerId,
+      signingSurveyorId,
     } = body;
 
     // Fetch existing order prior to update for audit trail comparison
@@ -143,7 +149,11 @@ export async function PUT(
         ...(marketerId !== undefined && {
           marketerId: marketerId || null,
         }),
+        ...(spokeId !== undefined && {
+          spokeId: spokeId || null,
+        }),
         ...(clientName !== undefined && { clientName }),
+        ...(orderedBy !== undefined && { orderedBy: orderedBy ? orderedBy.trim() : null }),
         ...(address !== undefined && { address }),
         ...(city !== undefined && { city }),
         ...(state !== undefined && { state }),
@@ -176,6 +186,7 @@ export async function PUT(
         ...(surveyType !== undefined && { surveyTypeCustom: surveyType ? surveyType.trim() : null }),
         ...(surveyTypeCustom !== undefined && { surveyTypeCustom: surveyTypeCustom ? surveyTypeCustom.trim() : null }),
         ...(specialInstructions !== undefined && { specialInstructions: specialInstructions ? specialInstructions.trim() : null }),
+        ...(internalDraftingNotes !== undefined && { internalDraftingNotes: internalDraftingNotes ? internalDraftingNotes.trim() : null }),
         ...(isFhaVaLoan !== undefined && { isFhaVaLoan: Boolean(isFhaVaLoan) }),
         ...(crewComments !== undefined && { crewComments: crewComments ? crewComments.trim() : null }),
         ...(pointsOfInterest !== undefined && { pointsOfInterest: pointsOfInterest ? pointsOfInterest.trim() : null }),
@@ -190,6 +201,7 @@ export async function PUT(
         ...(fieldCrewId !== undefined && { fieldCrewId: fieldCrewId || null }),
         ...(drafterId !== undefined && { drafterId: drafterId || null }),
         ...(checkerId !== undefined && { checkerId: checkerId || null }),
+        ...(signingSurveyorId !== undefined && { signingSurveyorId: signingSurveyorId || null }),
       },
       include: {
         surveyType: true,
@@ -201,10 +213,19 @@ export async function PUT(
         fieldCrew: true,
         drafter: true,
         checker: true,
+        signingSurveyor: true,
         quote: true,
         documents: true,
       },
     });
+
+    // Update client email if provided
+    if (clientEmail !== undefined && updatedOrder.clientId) {
+      await prisma.client.update({
+        where: { id: updatedOrder.clientId },
+        data: { email: clientEmail ? clientEmail.trim() : null },
+      });
+    }
 
     // Record audit events if monitored fields changed
     if (session?.user?.id && existingOrder) {

@@ -13,6 +13,7 @@ enum Role {
   FIELD_WORKER
   SIGNING_SURVEYOR
   MARKETER
+  RESEARCHER
 }
 
 enum OrderStatus {
@@ -21,6 +22,8 @@ enum OrderStatus {
   REVIEW
   COMPLETED
   CANCELLED
+  HOLD_REVIEW
+  HOLD_CLIENT
 }
 
 model Spoke {
@@ -63,6 +66,7 @@ model User {
   fieldCrewOrders  Order[]   @relation("OrderFieldCrew")
   draftedOrders    Order[]   @relation("OrderDrafter")
   checkedOrders    Order[]   @relation("OrderChecker")
+  signingSurveyorOrders Order[] @relation("OrderSigningSurveyor")
   timesheets     Timesheet[]
   assets         Asset[]
   accounts       Account[]
@@ -168,8 +172,10 @@ model Order {
   subdivision       String?
 
   // Job Specifics
+  orderedBy         String?
   surveyTypeCustom  String?
   specialInstructions String?   @db.Text
+  internalDraftingNotes String? @db.Text
   isFhaVaLoan       Boolean     @default(false)
   crewComments      String?     @db.Text
   pointsOfInterest  String?     @db.Text
@@ -192,6 +198,8 @@ model Order {
   drafter           User?       @relation("OrderDrafter", fields: [drafterId], references: [id])
   checkerId         String?
   checker           User?       @relation("OrderChecker", fields: [checkerId], references: [id])
+  signingSurveyorId String?
+  signingSurveyor   User?       @relation("OrderSigningSurveyor", fields: [signingSurveyorId], references: [id])
 
   latitude          Float?
   longitude         Float?
