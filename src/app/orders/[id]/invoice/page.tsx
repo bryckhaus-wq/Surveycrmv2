@@ -50,29 +50,48 @@ interface OrderData {
   } | null;
 }
 
+interface SystemSettingsData {
+  id: string;
+  companyName: string;
+  address?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  logoUrl?: string | null;
+  themeColor?: string | null;
+}
+
 export default function OrderInvoicePage() {
   const params = useParams();
   const id = params.id as string;
   const [order, setOrder] = useState<OrderData | null>(null);
+  const [settings, setSettings] = useState<SystemSettingsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) return;
-    const fetchOrder = async () => {
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await fetch(`/api/orders/${id}`);
-        if (!res.ok) throw new Error("Failed to load order invoice details");
-        const data: OrderData = await res.json();
-        setOrder(data);
+        const [orderRes, settingsRes] = await Promise.all([
+          fetch(`/api/orders/${id}`),
+          fetch("/api/admin/settings"),
+        ]);
+        if (!orderRes.ok) throw new Error("Failed to load order invoice details");
+        const orderData: OrderData = await orderRes.json();
+        setOrder(orderData);
+
+        if (settingsRes.ok) {
+          const settingsData: SystemSettingsData = await settingsRes.json();
+          setSettings(settingsData);
+        }
       } catch (err: any) {
         setError(err.message || "An error occurred fetching invoice data");
       } finally {
         setLoading(false);
       }
     };
-    fetchOrder();
+    fetchData();
   }, [id]);
 
   useEffect(() => {
@@ -154,19 +173,37 @@ export default function OrderInvoicePage() {
       <div className="max-w-3xl mx-auto bg-white p-4 sm:p-8 print:p-0 print:max-w-none text-black">
         {/* Header */}
         <div className="flex justify-between items-start border-b-2 border-black pb-6">
-          <div>
-            <h1 className="text-2xl font-black tracking-tight uppercase">
-              {order.spoke?.name || "MJS LAND SURVEYING"}
-            </h1>
-            <div className="text-xs text-black mt-1 space-y-0.5">
-              {order.spoke?.address && <p>{order.spoke.address}</p>}
-              {(order.spoke?.city || order.spoke?.state || order.spoke?.zip) && (
-                <p>
-                  {[order.spoke.city, order.spoke.state].filter(Boolean).join(", ")}{" "}
-                  {order.spoke.zip || ""}
-                </p>
-              )}
-              {order.spoke?.lbNumber && <p>LB #{order.spoke.lbNumber}</p>}
+          <div className="space-y-2">
+            {settings?.logoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={settings.logoUrl}
+                alt={settings.companyName || "Logo"}
+                className="max-h-14 object-contain"
+              />
+            )}
+            <div>
+              <h1 className="text-2xl font-black tracking-tight uppercase">
+                {settings?.companyName || order.spoke?.name || "MJS LAND SURVEYING"}
+              </h1>
+              <div className="text-xs text-black mt-1 space-y-0.5">
+                {settings?.address ? (
+                  <p>{settings.address}</p>
+                ) : (
+                  <>
+                    {order.spoke?.address && <p>{order.spoke.address}</p>}
+                    {(order.spoke?.city || order.spoke?.state || order.spoke?.zip) && (
+                      <p>
+                        {[order.spoke.city, order.spoke.state].filter(Boolean).join(", ")}{" "}
+                        {order.spoke.zip || ""}
+                      </p>
+                    )}
+                  </>
+                )}
+                {settings?.phone && <p>Tel: {settings.phone}</p>}
+                {settings?.email && <p>Email: {settings.email}</p>}
+                {order.spoke?.lbNumber && <p>LB #{order.spoke.lbNumber}</p>}
+              </div>
             </div>
           </div>
 

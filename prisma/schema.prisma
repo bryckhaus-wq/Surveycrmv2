@@ -340,3 +340,14 @@ model EmailLog {
   quote     Quote?   @relation(fields: [quoteId], references: [id], onDelete: Cascade)
   order     Order?   @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
+
+model SystemSettings {
+  id            String   @id @default("default")
+  companyName   String   @default("Survey CRM")
+  address       String?
+  phone         String?
+  email         String?
+  logoUrl       String?
+  themeColor    String   @default("#0f172a") // Tailwind slate-900
+  updatedAt     DateTime @updatedAt
+}

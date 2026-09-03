@@ -35,9 +35,30 @@ export default function Navbar() {
   const { theme, setTheme, resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [brandSettings, setBrandSettings] = useState<{
+    companyName: string;
+    logoUrl?: string | null;
+    themeColor: string;
+  }>({
+    companyName: "MJS Surveys",
+    logoUrl: null,
+    themeColor: "#0f172a",
+  });
 
   useEffect(() => {
     setMounted(true);
+    fetch("/api/admin/settings")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) {
+          setBrandSettings({
+            companyName: data.companyName || "MJS Surveys",
+            logoUrl: data.logoUrl || null,
+            themeColor: data.themeColor || "#0f172a",
+          });
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleSearchSubmit = (e: React.FormEvent) => {
@@ -87,10 +108,25 @@ export default function Navbar() {
               href="/"
               className="flex items-center space-x-2.5 font-bold text-xl tracking-tight text-white hover:text-blue-400 transition-colors"
             >
-              <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white shadow-sm font-black text-base">
-                M
-              </div>
-              <span>MJS Surveys</span>
+              {brandSettings.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={brandSettings.logoUrl}
+                  alt={brandSettings.companyName}
+                  className="h-8 max-w-[120px] object-contain rounded"
+                  onError={(e) => {
+                    (e.target as HTMLElement).style.display = "none";
+                  }}
+                />
+              ) : (
+                <div
+                  className="w-8 h-8 rounded-lg flex items-center justify-center text-white shadow-sm font-black text-base"
+                  style={{ backgroundColor: brandSettings.themeColor || "#2563eb" }}
+                >
+                  {(brandSettings.companyName || "M").charAt(0).toUpperCase()}
+                </div>
+              )}
+              <span className="truncate max-w-[200px]">{brandSettings.companyName}</span>
             </Link>
 
             {/* Navigation links - rendered only if authenticated */}
