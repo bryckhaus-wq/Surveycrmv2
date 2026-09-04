@@ -18,15 +18,16 @@ export async function POST(
 
     const { id } = params;
     const body = await req.json();
-    const { amount, method, date, transactionNumber } = body;
+    const { amount, method, date, transactionNumber, paymentType = "PAYMENT" } = body;
 
-    const parsedAmount = parseFloat(String(amount));
+    const parsedAmount = parseFloat(amount);
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
       return NextResponse.json(
         { error: "Invalid payment amount. Amount must be greater than 0." },
         { status: 400 }
       );
     }
+    const finalAmount = paymentType === 'REFUND' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
 
     if (!method || typeof method !== "string" || !method.trim()) {
       return NextResponse.json(
@@ -49,7 +50,8 @@ export async function POST(
 
     const payment = await prisma.payment.create({
       data: {
-        amount: parsedAmount,
+        amount: finalAmount,
+        paymentType: paymentType || "PAYMENT",
         method: method.trim(),
         transactionNumber:
           typeof transactionNumber === "string" && transactionNumber.trim()
@@ -61,11 +63,12 @@ export async function POST(
     });
 
     if (session.user?.id) {
+      const typeLabel = paymentType === "REFUND" ? "Refund" : "Payment";
       await logAction(
         "ORDER",
         id,
-        "PAYMENT_RECORDED",
-        `Payment of $${parsedAmount.toFixed(2)} recorded via ${method.trim()}`,
+        paymentType === "REFUND" ? "REFUND_RECORDED" : "PAYMENT_RECORDED",
+        `${typeLabel} of $${Math.abs(parsedAmount).toFixed(2)} recorded via ${method.trim()}`,
         session.user.id
       );
     }

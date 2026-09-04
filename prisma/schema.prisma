@@ -255,6 +255,7 @@ model Order {
 model Payment {
   id                String   @id @default(cuid())
   amount            Float
+  paymentType       String   @default("PAYMENT")
   method            String   // e.g., "Check", "Credit Card", "Zelle"
   transactionNumber String?
   date              DateTime @default(now())
