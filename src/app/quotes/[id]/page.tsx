@@ -148,6 +148,17 @@ export default function QuoteDetailPage() {
   const [users, setUsers] = useState<Array<{ id: string; name: string; role: string; email: string }>>([]);
   const [spokes, setSpokes] = useState<SpokeOption[]>([]);
   const [spokeId, setSpokeId] = useState<string>("");
+  const [clients, setClients] = useState<
+    Array<{
+      id: string;
+      name: string;
+      email?: string | null;
+      phone?: string | null;
+      clientType?: string;
+      address?: string | null;
+    }>
+  >([]);
+  const [clientId, setClientId] = useState<string>("");
   const [clientName, setClientName] = useState<string>("");
   const [orderByName, setOrderByName] = useState<string>("");
   const [clientEmail, setClientEmail] = useState<string>("");
@@ -187,6 +198,7 @@ export default function QuoteDetailPage() {
   useEffect(() => {
     if (id) {
       fetchQuote();
+      fetchClients();
       fetchSettings();
       fetchLeadSources();
       fetchUsers();
@@ -194,6 +206,18 @@ export default function QuoteDetailPage() {
       fetchAuditLogs();
     }
   }, [id]);
+
+  const fetchClients = async () => {
+    try {
+      const res = await fetch("/api/clients");
+      if (res.ok) {
+        const data = await res.json();
+        setClients(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch clients:", err);
+    }
+  };
 
   const fetchSettings = async () => {
     try {
@@ -280,6 +304,7 @@ export default function QuoteDetailPage() {
       if (res.ok) {
         const data: QuoteDetail = await res.json();
         setQuote(data);
+        setClientId(data.clientId || data.client?.id || "");
         setClientName(data.clientName || data.client?.name || "");
         setClientEmail(data.clientEmail || data.client?.email || "");
         setClientPhone(data.clientPhone || data.client?.phone || "");
@@ -307,6 +332,17 @@ export default function QuoteDetailPage() {
       setError("An error occurred while fetching the quote.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleClientSelect = (selectedId: string) => {
+    setClientId(selectedId);
+    if (!selectedId) return;
+    const selectedClient = clients.find((c) => c.id === selectedId);
+    if (selectedClient) {
+      if (selectedClient.name) setClientName(selectedClient.name);
+      if (selectedClient.phone) setClientPhone(selectedClient.phone);
+      if (selectedClient.email) setClientEmail(selectedClient.email);
     }
   };
 
@@ -405,6 +441,7 @@ export default function QuoteDetailPage() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          clientId: clientId || null,
           clientName: clientName.trim(),
           orderByName: orderByName.trim() || null,
           clientEmail: clientEmail.trim() || null,
@@ -901,6 +938,24 @@ export default function QuoteDetailPage() {
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+              <div className="sm:col-span-2">
+                <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
+                  Linked Client Account
+                </label>
+                <select
+                  value={clientId}
+                  onChange={(e) => handleClientSelect(e.target.value)}
+                  className="w-full px-2.5 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="">-- No Linked Client (Direct / New) --</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.clientType ? `(${c.clientType})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div>
                 <label className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-1">
                   Client Name <span className="text-rose-500">*</span>
@@ -1354,8 +1409,7 @@ export default function QuoteDetailPage() {
               <FileUpload
                 entityId={quote.id}
                 entityType="QUOTE"
-                defaultDocType="Quote"
-                allowedDocTypes={["Quote"]}
+                defaultDocType="Signed proposal"
                 onUploadSuccess={fetchQuote}
                 buttonLabel="Upload quote document"
               />

@@ -253,12 +253,13 @@ model Order {
 }
 
 model Payment {
-  id        String   @id @default(cuid())
-  amount    Float
-  method    String   // e.g., "Check", "Credit Card", "Zelle"
-  date      DateTime @default(now())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id                String   @id @default(cuid())
+  amount            Float
+  method            String   // e.g., "Check", "Credit Card", "Zelle"
+  transactionNumber String?
+  date              DateTime @default(now())
+  orderId           String
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Document {

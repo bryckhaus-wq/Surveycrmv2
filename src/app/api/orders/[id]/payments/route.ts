@@ -18,7 +18,7 @@ export async function POST(
 
     const { id } = params;
     const body = await req.json();
-    const { amount, method, date } = body;
+    const { amount, method, date, transactionNumber } = body;
 
     const parsedAmount = parseFloat(String(amount));
     if (isNaN(parsedAmount) || parsedAmount <= 0) {
@@ -51,6 +51,10 @@ export async function POST(
       data: {
         amount: parsedAmount,
         method: method.trim(),
+        transactionNumber:
+          typeof transactionNumber === "string" && transactionNumber.trim()
+            ? transactionNumber.trim()
+            : null,
         date: paymentDate,
         orderId: id,
       },

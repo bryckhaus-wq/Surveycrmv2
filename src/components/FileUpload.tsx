@@ -3,31 +3,50 @@
 import React, { useState, useRef } from "react";
 import { Upload, CheckCircle2, AlertCircle, FileText, Loader2 } from "lucide-react";
 
+export const ALL_DOCUMENT_TYPES = [
+  "Aerial",
+  "CAD DWG",
+  "Cad PDF",
+  "Client CAD",
+  "Deed",
+  "Elevation Certificate",
+  "Exhibit PDF",
+  "Field notes",
+  "Filed map",
+  "Flood info",
+  "Meets and Bounds",
+  "Order form",
+  "Point",
+  "Review comments",
+  "Signed proposal",
+  "Title commitment",
+  "Zoning",
+];
+
 interface FileUploadProps {
   entityId: string;
   entityType: "QUOTE" | "ORDER";
-  defaultDocType?: "Quote" | "FieldSheet" | "FinalSurvey";
+  defaultDocType?: string;
   onUploadSuccess?: () => void;
-  allowedDocTypes?: Array<"Quote" | "FieldSheet" | "FinalSurvey">;
+  allowedDocTypes?: string[];
   buttonLabel?: string;
 }
 
 export default function FileUpload({
   entityId,
   entityType,
-  defaultDocType = "Quote",
+  defaultDocType = "Aerial",
   onUploadSuccess,
   allowedDocTypes,
   buttonLabel,
 }: FileUploadProps) {
+  const typesToOffer = allowedDocTypes || ALL_DOCUMENT_TYPES;
   const [docType, setDocType] = useState<string>(defaultDocType);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const typesToOffer = allowedDocTypes || ["Quote", "FieldSheet", "FinalSurvey"];
 
   const handleUpload = async (file: File) => {
     if (!file) return;

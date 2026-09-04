@@ -107,6 +107,7 @@ interface PaymentRecord {
   id: string;
   amount: number;
   method: string;
+  transactionNumber?: string | null;
   date: string;
   orderId?: string;
 }
@@ -217,6 +218,16 @@ export default function OrderDetailPage() {
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [users, setUsers] = useState<StaffUser[]>([]);
+  const [clients, setClients] = useState<
+    Array<{
+      id: string;
+      name: string;
+      email?: string | null;
+      phone?: string | null;
+      clientType?: string;
+      address?: string | null;
+    }>
+  >([]);
   const [spokes, setSpokes] = useState<SpokeOption[]>([]);
   const [surveyTypes, setSurveyTypes] = useState<SurveyTypeOption[]>([]);
   const [loading, setLoading] = useState(true);
@@ -231,6 +242,7 @@ export default function OrderDetailPage() {
   // Payment Ledger State
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Check");
+  const [paymentTransactionNumber, setPaymentTransactionNumber] = useState("");
   const [paymentDate, setPaymentDate] = useState(
     new Date().toISOString().split("T")[0]
   );
@@ -239,6 +251,7 @@ export default function OrderDetailPage() {
 
   // Form Edit State
   const [formData, setFormData] = useState({
+    clientId: "",
     spokeId: "",
     surveyTypeId: "",
     surveyType: "",
@@ -322,6 +335,7 @@ export default function OrderDetailPage() {
 
   const populateFormState = (data: OrderDetail) => {
     setFormData({
+      clientId: data.clientId || data.client?.id || "",
       spokeId: data.spokeId || data.spoke?.id || "",
       surveyTypeId: data.surveyTypeId || data.surveyType?.id || "",
       surveyType: data.surveyTypeCustom || data.surveyType?.name || "",
@@ -371,12 +385,40 @@ export default function OrderDetailPage() {
   useEffect(() => {
     if (id) {
       fetchOrder();
+      fetchClients();
       fetchUsers();
       fetchSpokes();
       fetchSurveyTypes();
       fetchAuditLogs();
     }
   }, [id]);
+
+  const fetchClients = async () => {
+    try {
+      const res = await fetch("/api/clients");
+      if (res.ok) {
+        const data = await res.json();
+        setClients(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch clients:", err);
+    }
+  };
+
+  const handleClientSelect = (selectedId: string) => {
+    const selectedClient = clients.find((c) => c.id === selectedId);
+    setFormData((prev) => ({
+      ...prev,
+      clientId: selectedId,
+      ...(selectedClient
+        ? {
+            clientName: selectedClient.name || prev.clientName,
+            clientEmail: selectedClient.email || prev.clientEmail,
+            clientPhone: selectedClient.phone || prev.clientPhone,
+          }
+        : {}),
+    }));
+  };
 
   // Auto-set Spoke to New York branch if state is NY / New York
   useEffect(() => {
@@ -821,6 +863,7 @@ export default function OrderDetailPage() {
         body: JSON.stringify({
           amount: amt,
           method: paymentMethod,
+          transactionNumber: paymentTransactionNumber.trim() || undefined,
           date: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
         }),
       });
@@ -832,6 +875,7 @@ export default function OrderDetailPage() {
 
       setPaymentAmount("");
       setPaymentMethod("Check");
+      setPaymentTransactionNumber("");
       setPaymentDate(new Date().toISOString().split("T")[0]);
       setSuccessMessage("Payment recorded successfully.");
       await fetchOrder();
@@ -1340,6 +1384,24 @@ export default function OrderDetailPage() {
             </h2>
 
             <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
+                  Linked Client Account
+                </label>
+                <select
+                  value={formData.clientId}
+                  onChange={(e) => handleClientSelect(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="">-- No Linked Client (Direct / New) --</option>
+                  {clients.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} {c.clientType ? `(${c.clientType})` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
@@ -1896,7 +1958,7 @@ export default function OrderDetailPage() {
                   {paymentError}
                 </p>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                 <div>
                   <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
                     Amount ($)
@@ -1928,6 +1990,19 @@ export default function OrderDetailPage() {
                     <option value="Cash">Cash</option>
                     <option value="Other">Other</option>
                   </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                    Transaction #
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="e.g. CHK-1029, TXN-8941"
+                    value={paymentTransactionNumber}
+                    onChange={(e) => setPaymentTransactionNumber(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
 
                 <div>
@@ -1970,6 +2045,7 @@ export default function OrderDetailPage() {
                   <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
                     <th className="py-2 px-2 font-bold uppercase">Date</th>
                     <th className="py-2 px-2 font-bold uppercase">Method</th>
+                    <th className="py-2 px-2 font-bold uppercase">Transaction #</th>
                     <th className="py-2 px-2 font-bold uppercase text-right">
                       Amount
                     </th>
@@ -1985,6 +2061,9 @@ export default function OrderDetailPage() {
                         <td className="py-2 px-2 font-medium text-slate-900 dark:text-slate-100">
                           {p.method}
                         </td>
+                        <td className="py-2 px-2 font-mono text-slate-600 dark:text-slate-400">
+                          {p.transactionNumber || "-"}
+                        </td>
                         <td className="py-2 px-2 font-mono font-bold text-right text-emerald-600 dark:text-emerald-400">
                           ${Number(p.amount).toFixed(2)}
                         </td>
@@ -1993,7 +2072,7 @@ export default function OrderDetailPage() {
                   ) : (
                     <tr>
                       <td
-                        colSpan={3}
+                        colSpan={4}
                         className="py-4 text-center text-slate-400 dark:text-slate-500 italic"
                       >
                         No payments recorded yet.
@@ -2165,8 +2244,7 @@ export default function OrderDetailPage() {
               <FileUpload
                 entityId={order.id}
                 entityType="ORDER"
-                defaultDocType="FieldSheet"
-                allowedDocTypes={["FieldSheet", "FinalSurvey", "Quote"]}
+                defaultDocType="Field notes"
                 onUploadSuccess={fetchOrder}
                 buttonLabel="Drop file / Upload to Storage"
               />
