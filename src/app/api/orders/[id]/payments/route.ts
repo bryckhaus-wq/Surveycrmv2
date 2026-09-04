@@ -21,13 +21,18 @@ export async function POST(
     const { amount, method, date, transactionNumber, paymentType = "PAYMENT" } = body;
 
     const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+    if (isNaN(parsedAmount) || parsedAmount === 0) {
       return NextResponse.json(
-        { error: "Invalid payment amount. Amount must be greater than 0." },
+        { error: "Invalid payment amount. Amount must not be 0." },
         { status: 400 }
       );
     }
-    const finalAmount = paymentType === 'REFUND' ? -Math.abs(parsedAmount) : Math.abs(parsedAmount);
+    const finalAmount =
+      paymentType === "REFUND"
+        ? -Math.abs(parsedAmount)
+        : parsedAmount < 0
+        ? parsedAmount
+        : Math.abs(parsedAmount);
 
     if (!method || typeof method !== "string" || !method.trim()) {
       return NextResponse.json(

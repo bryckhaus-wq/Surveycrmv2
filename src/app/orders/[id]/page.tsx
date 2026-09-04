@@ -848,9 +848,9 @@ export default function OrderDetailPage() {
 
   const handleAddPayment = async (e: React.FormEvent) => {
     e.preventDefault();
-    const amt = parseFloat(paymentAmount);
-    if (isNaN(amt) || amt <= 0) {
-      setPaymentError("Please enter a valid payment amount greater than 0");
+    const parsedAmount = parseFloat(paymentAmount);
+    if (isNaN(parsedAmount) || parsedAmount === 0) {
+      setPaymentError("Please enter a valid payment amount.");
       return;
     }
 
@@ -861,7 +861,7 @@ export default function OrderDetailPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          amount: amt,
+          amount: parsedAmount,
           method: paymentMethod,
           transactionNumber: paymentTransactionNumber.trim() || undefined,
           date: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
