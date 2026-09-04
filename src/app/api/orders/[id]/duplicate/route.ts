@@ -38,16 +38,20 @@ export async function POST(
 
     // 2. Number Parsing for new unique orderNumber
     let newOrderNumber = `${originalOrder.orderNumber}-1`;
-    const match = originalOrder.orderNumber.match(/-(\d+)$/);
+
+    // Match a hyphen followed by exactly 1 or 2 digits at the end of the string.
+    // This ignores base sequences (e.g., -003) but matches duplication suffixes (e.g., -1, -2).
+    const match = originalOrder.orderNumber.match(/-(\d{1,2})$/);
+
     if (match) {
       const nextNum = parseInt(match[1], 10) + 1;
-      newOrderNumber = originalOrder.orderNumber.replace(/-\d+$/, `-${nextNum}`);
+      newOrderNumber = originalOrder.orderNumber.replace(/-\d{1,2}$/, `-${nextNum}`);
     }
 
     // Ensure collision avoidance
     let candidateNumber = newOrderNumber;
     let counter = match ? parseInt(match[1], 10) + 1 : 1;
-    const baseOrderNumber = originalOrder.orderNumber.replace(/-\d+$/, "");
+    const baseOrderNumber = originalOrder.orderNumber.replace(/-\d{1,2}$/, "");
     while (
       await prisma.order.findUnique({
         where: { orderNumber: candidateNumber },
