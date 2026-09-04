@@ -51,17 +51,28 @@ export async function GET(req: NextRequest) {
         finalPaymentReceived: true,
         completionDate: true,
         createdAt: true,
+        payments: {
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            date: true,
+          },
+        },
       },
       orderBy: {
         createdAt: "desc",
       },
     });
 
-    // Calculate total system revenue (Deposit Paid + Final Payment Received)
+    // Calculate total system revenue from Payment records associated with orders
     let monthlyRevenue = 0;
     orders.forEach((o) => {
-      const paid = (Number(o.depositPaid) || 0) + (Number(o.finalPaymentReceived) || 0);
-      monthlyRevenue += paid;
+      const orderPaymentsTotal = (o.payments || []).reduce(
+        (sum, p) => sum + (Number(p.amount) || 0),
+        0
+      );
+      monthlyRevenue += orderPaymentsTotal;
     });
 
     // Pull PLATFORM_FEE_PERCENTAGE from environment (fallback to 0.75)

@@ -17,6 +17,7 @@ enum Role {
 }
 
 enum OrderStatus {
+  NEW
   FIELD_PENDING
   DRAFTING
   REVIEW
@@ -24,6 +25,10 @@ enum OrderStatus {
   CANCELLED
   HOLD_REVIEW
   HOLD_CLIENT
+  PAID
+  HOLD_DEPOSIT_NEEDED
+  HOLD_ACCESS
+  HOLD_FINAL_PAYMENT_ISSUE
 }
 
 enum QuoteStatus {
@@ -243,7 +248,17 @@ model Order {
   attachments       Attachment[]
   timesheets        Timesheet[]
   emailLogs         EmailLog[]
+  payments          Payment[]
   createdAt         DateTime    @default(now())
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  amount    Float
+  method    String   // e.g., "Check", "Credit Card", "Zelle"
+  date      DateTime @default(now())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
 
 model Document {

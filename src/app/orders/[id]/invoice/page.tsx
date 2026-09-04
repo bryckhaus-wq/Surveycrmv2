@@ -28,6 +28,12 @@ interface OrderData {
   depositPaid?: number;
   finalPaymentReceived?: number;
   taxRate?: number;
+  payments?: Array<{
+    id: string;
+    amount: number;
+    method: string;
+    date: string;
+  }>;
   clientDueDate?: string | null;
   completionDate?: string | null;
   createdAt: string;
@@ -141,8 +147,17 @@ export default function OrderInvoicePage() {
   const depositPaid = Number(order.depositPaid) || 0;
   const finalPaymentReceived = Number(order.finalPaymentReceived) || 0;
 
+  const totalPaymentsFromLedger =
+    order.payments && order.payments.length > 0
+      ? order.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+      : null;
+
+  const totalPaid =
+    totalPaymentsFromLedger !== null
+      ? totalPaymentsFromLedger
+      : depositPaid + finalPaymentReceived;
+
   const subtotal = surveyPrice + miscAmt - discountAmt;
-  const totalPaid = depositPaid + finalPaymentReceived;
   const balanceDue = subtotal - totalPaid;
 
   const surveyTypeName =
@@ -366,14 +381,35 @@ export default function OrderInvoicePage() {
               <span className="font-mono font-bold">${subtotal.toFixed(2)}</span>
             </div>
 
-            <div className="flex justify-between py-0.5">
-              <span className="font-semibold text-zinc-700">Deposit Paid:</span>
-              <span className="font-mono font-bold">-${depositPaid.toFixed(2)}</span>
-            </div>
+            {order.payments && order.payments.length > 0 ? (
+              order.payments.map((p) => (
+                <div key={p.id} className="flex justify-between py-0.5 text-zinc-600">
+                  <span>
+                    Payment ({p.method} - {new Date(p.date).toLocaleDateString()}):
+                  </span>
+                  <span className="font-mono font-bold">-${Number(p.amount).toFixed(2)}</span>
+                </div>
+              ))
+            ) : (
+              <>
+                {depositPaid > 0 && (
+                  <div className="flex justify-between py-0.5">
+                    <span className="font-semibold text-zinc-700">Deposit Paid:</span>
+                    <span className="font-mono font-bold">-${depositPaid.toFixed(2)}</span>
+                  </div>
+                )}
+                {finalPaymentReceived > 0 && (
+                  <div className="flex justify-between py-0.5">
+                    <span className="font-semibold text-zinc-700">Final Payment Received:</span>
+                    <span className="font-mono font-bold">-${finalPaymentReceived.toFixed(2)}</span>
+                  </div>
+                )}
+              </>
+            )}
 
-            <div className="flex justify-between py-0.5">
-              <span className="font-semibold text-zinc-700">Final Payment Received:</span>
-              <span className="font-mono font-bold">-${finalPaymentReceived.toFixed(2)}</span>
+            <div className="flex justify-between py-0.5 border-t border-black/20 font-semibold">
+              <span className="text-zinc-700">Total Paid to Date:</span>
+              <span className="font-mono font-bold">-${totalPaid.toFixed(2)}</span>
             </div>
 
             <div className="flex justify-between pt-2 border-t-2 border-black text-sm">

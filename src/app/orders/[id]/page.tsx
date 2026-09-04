@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useSession } from "next-auth/react";
 import { useRole } from "@/context/RoleContext";
@@ -41,6 +41,8 @@ import {
   PauseCircle,
   Lock,
   Trash2,
+  Copy,
+  Plus,
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
 
@@ -101,6 +103,14 @@ interface SurveyTypeOption {
   defaultPrice?: number | string;
 }
 
+interface PaymentRecord {
+  id: string;
+  amount: number;
+  method: string;
+  date: string;
+  orderId?: string;
+}
+
 interface OrderDetail {
   id: string;
   orderNumber: string;
@@ -115,6 +125,7 @@ interface OrderDetail {
   state: string;
   zip: string;
   status:
+    | "NEW"
     | "FIELD_PENDING"
     | "DRAFTING"
     | "REVIEW"
@@ -122,6 +133,10 @@ interface OrderDetail {
     | "CANCELLED"
     | "HOLD_REVIEW"
     | "HOLD_CLIENT"
+    | "HOLD_DEPOSIT_NEEDED"
+    | "HOLD_ACCESS"
+    | "HOLD_FINAL_PAYMENT_ISSUE"
+    | "PAID"
     | string;
   fieldNotes: string | null;
   orderedBy?: string | null;
@@ -151,6 +166,7 @@ interface OrderDetail {
   depositPaid?: number;
   finalPaymentReceived?: number;
   taxRate?: number;
+  payments?: PaymentRecord[];
   researcherId?: string | null;
   fieldCrewId?: string | null;
   drafterId?: string | null;
@@ -187,6 +203,7 @@ interface OrderDetail {
 
 export default function OrderDetailPage() {
   const params = useParams();
+  const router = useRouter();
   const id = params.id as string;
   const { role } = useRole();
   const { data: session } = useSession();
@@ -205,10 +222,20 @@ export default function OrderDetailPage() {
   const [loading, setLoading] = useState(true);
   const [savingOrder, setSavingOrder] = useState(false);
   const [sendingConfirmation, setSendingConfirmation] = useState(false);
+  const [duplicatingOrder, setDuplicatingOrder] = useState(false);
   const [deletingDocId, setDeletingDocId] = useState<string | null>(null);
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Payment Ledger State
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Check");
+  const [paymentDate, setPaymentDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   // Form Edit State
   const [formData, setFormData] = useState({
@@ -743,6 +770,79 @@ export default function OrderDetailPage() {
     }
   };
 
+  const handleDuplicateOrder = async () => {
+    if (!order) return;
+    if (
+      !confirm(
+        `Are you sure you want to duplicate Order #${order.orderNumber}? This will create a new order copying all client fields, address, pricing, county links, and duplicating attached files.`
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setDuplicatingOrder(true);
+      setError(null);
+      setSuccessMessage(null);
+
+      const res = await fetch(`/api/orders/${id}/duplicate`, {
+        method: "POST",
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to duplicate order.");
+      }
+
+      setSuccessMessage(`Order duplicated successfully as Order #${data.orderNumber || ""}. Redirecting...`);
+      router.push(`/orders/${data.newOrderId}`);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || "Failed to duplicate order.");
+    } finally {
+      setDuplicatingOrder(false);
+    }
+  };
+
+  const handleAddPayment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(paymentAmount);
+    if (isNaN(amt) || amt <= 0) {
+      setPaymentError("Please enter a valid payment amount greater than 0");
+      return;
+    }
+
+    try {
+      setSubmittingPayment(true);
+      setPaymentError(null);
+      const res = await fetch(`/api/orders/${id}/payments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          amount: amt,
+          method: paymentMethod,
+          date: paymentDate ? new Date(paymentDate).toISOString() : new Date().toISOString(),
+        }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Failed to add payment record");
+      }
+
+      setPaymentAmount("");
+      setPaymentMethod("Check");
+      setPaymentDate(new Date().toISOString().split("T")[0]);
+      setSuccessMessage("Payment recorded successfully.");
+      await fetchOrder();
+      await fetchAuditLogs();
+    } catch (err: any) {
+      setPaymentError(err.message || "Failed to record payment");
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-12 text-center text-slate-500 dark:text-slate-400">
@@ -775,20 +875,26 @@ export default function OrderDetailPage() {
 
   const effectiveClient = order.client || order.quote?.client;
 
-  // Balance Due calculation: (Survey Price + Misc Amt) - (Discount Amt + Deposit Paid + Final Payment Received)
+  // Balance Due calculation: (Survey Price + Misc Amount) - (Sum of all order.payments)
   const numericSurveyPrice = Number(formData.surveyPrice) || 0;
   const numericMiscAmt = Number(formData.miscAmt) || 0;
   const numericDiscountAmt = Number(formData.discountAmt) || 0;
-  const numericDepositPaid = Number(formData.depositPaid) || 0;
-  const numericFinalPaymentReceived =
-    Number(formData.finalPaymentReceived) || 0;
+  const totalPayments = (order.payments || []).reduce(
+    (sum, p) => sum + (Number(p.amount) || 0),
+    0
+  );
   const balanceDue =
-    numericSurveyPrice +
-    numericMiscAmt -
-    (numericDiscountAmt + numericDepositPaid + numericFinalPaymentReceived);
+    numericSurveyPrice + numericMiscAmt - (numericDiscountAmt + totalPayments);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
+      case "NEW":
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-cyan-100 dark:bg-cyan-950/60 text-cyan-800 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-800">
+            <Compass className="w-3.5 h-3.5 mr-1" />
+            NEW
+          </span>
+        );
       case "FIELD_PENDING":
         return (
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-amber-100 dark:bg-amber-950/60 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
@@ -822,6 +928,34 @@ export default function OrderDetailPage() {
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-orange-100 dark:bg-orange-950/60 text-orange-800 dark:text-orange-300 border border-orange-300 dark:border-orange-700">
             <PauseCircle className="w-3.5 h-3.5 mr-1 text-orange-600" />
             HOLD - CLIENT
+          </span>
+        );
+      case "HOLD_DEPOSIT_NEEDED":
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-rose-100 dark:bg-rose-950/60 text-rose-800 dark:text-rose-300 border border-rose-300 dark:border-rose-700">
+            <PauseCircle className="w-3.5 h-3.5 mr-1 text-rose-600" />
+            HOLD - DEPOSIT NEEDED
+          </span>
+        );
+      case "HOLD_ACCESS":
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-yellow-100 dark:bg-yellow-950/60 text-yellow-800 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-700">
+            <PauseCircle className="w-3.5 h-3.5 mr-1 text-yellow-600" />
+            HOLD - ACCESS
+          </span>
+        );
+      case "HOLD_FINAL_PAYMENT_ISSUE":
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-300 dark:border-red-700">
+            <PauseCircle className="w-3.5 h-3.5 mr-1 text-red-600" />
+            HOLD - FINAL PAYMENT ISSUE
+          </span>
+        );
+      case "PAID":
+        return (
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-teal-100 dark:bg-teal-950/60 text-teal-800 dark:text-teal-300 border border-teal-200 dark:border-teal-800">
+            <CheckCircle2 className="w-3.5 h-3.5 mr-1" />
+            PAID
           </span>
         );
       case "COMPLETED":
@@ -874,8 +1008,26 @@ export default function OrderDetailPage() {
           </div>
         </div>
 
-        {/* Global Communication Actions */}
+        {/* Global Communication Actions & Duplicate Button */}
         <div className="flex items-center flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={handleDuplicateOrder}
+            disabled={duplicatingOrder}
+            className="inline-flex items-center px-3 py-2 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/50 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 text-xs font-semibold rounded-lg transition-colors disabled:opacity-50 cursor-pointer shadow-sm"
+          >
+            {duplicatingOrder ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                Duplicating...
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5 mr-1.5 text-indigo-600 dark:text-indigo-400" />
+                Duplicate Order
+              </>
+            )}
+          </button>
           {order.client?.phone ? (
             <a
               href={`sms:${order.client.phone}`}
@@ -1406,55 +1558,30 @@ export default function OrderDetailPage() {
               Status & Workflow
             </h2>
 
-            <div className="space-y-2">
-              {[
-                {
-                  key: "FIELD_PENDING",
-                  label: "1. Field Pending",
-                  icon: Compass,
-                },
-                { key: "DRAFTING", label: "2. CAD Drafting", icon: Clock },
-                {
-                  key: "REVIEW",
-                  label: "3. Surveyor Review",
-                  icon: FileCheck,
-                },
-                {
-                  key: "HOLD_REVIEW",
-                  label: "Hold - Review Pending",
-                  icon: PauseCircle,
-                },
-                {
-                  key: "HOLD_CLIENT",
-                  label: "Hold - Awaiting Client",
-                  icon: PauseCircle,
-                },
-                {
-                  key: "COMPLETED",
-                  label: "Completed / Signed Off",
-                  icon: CheckCircle2,
-                },
-              ].map((step) => {
-                const isCurrent = order.status === step.key;
-                return (
-                  <button
-                    key={step.key}
-                    type="button"
-                    onClick={() => handleUpdateStatus(step.key)}
-                    className={`w-full flex items-center justify-between p-2.5 rounded-lg text-xs font-semibold transition-all border ${
-                      isCurrent
-                        ? "bg-blue-600 text-white border-blue-600 shadow-sm ring-2 ring-blue-400/30"
-                        : "bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
-                    }`}
-                  >
-                    <div className="flex items-center space-x-2">
-                      <step.icon className="w-4 h-4" />
-                      <span>{step.label}</span>
-                    </div>
-                    {isCurrent && <CheckCircle className="w-4 h-4" />}
-                  </button>
-                );
-              })}
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
+                  Order Status
+                </label>
+                <select
+                  value={order.status}
+                  onChange={(e) => handleUpdateStatus(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                >
+                  <option value="NEW">NEW</option>
+                  <option value="FIELD_PENDING">FIELD PENDING</option>
+                  <option value="DRAFTING">CAD DRAFTING</option>
+                  <option value="REVIEW">SURVEYOR REVIEW</option>
+                  <option value="HOLD_REVIEW">HOLD - REVIEW PENDING</option>
+                  <option value="HOLD_CLIENT">HOLD - AWAITING CLIENT</option>
+                  <option value="HOLD_DEPOSIT_NEEDED">HOLD - DEPOSIT NEEDED</option>
+                  <option value="HOLD_ACCESS">HOLD - ACCESS ISSUE</option>
+                  <option value="HOLD_FINAL_PAYMENT_ISSUE">HOLD - FINAL PAYMENT ISSUE</option>
+                  <option value="PAID">PAID</option>
+                  <option value="COMPLETED">COMPLETED</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                </select>
+              </div>
             </div>
 
             {/* Prominent Red Cancel Job Button */}
@@ -1678,7 +1805,7 @@ export default function OrderDetailPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-1 gap-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
                     Discount ($)
@@ -1689,36 +1816,6 @@ export default function OrderDetailPage() {
                     value={formData.discountAmt}
                     onChange={(e) =>
                       handleInputChange("discountAmt", e.target.value)
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                    Deposit Paid ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.depositPaid}
-                    onChange={(e) =>
-                      handleInputChange("depositPaid", e.target.value)
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">
-                    Final Paid ($)
-                  </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={formData.finalPaymentReceived}
-                    onChange={(e) =>
-                      handleInputChange("finalPaymentReceived", e.target.value)
                     }
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-medium text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
                   />
@@ -1739,7 +1836,7 @@ export default function OrderDetailPage() {
                       Balance Due
                     </span>
                     <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                      (Price + Misc) - (Discount + Deposit + Final Paid)
+                      (Price + Misc) - (Discount + Payments)
                     </span>
                   </div>
 
@@ -1771,6 +1868,140 @@ export default function OrderDetailPage() {
                   <span>Build PDF Invoice</span>
                 </a>
               </div>
+            </div>
+          </div>
+
+          {/* Card 2D: Payment Ledger */}
+          <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center uppercase tracking-wider">
+                <Receipt className="w-4 h-4 mr-2 text-emerald-600 dark:text-emerald-400" />
+                Payment Ledger
+              </h2>
+              <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                Total Paid: ${totalPayments.toFixed(2)}
+              </span>
+            </div>
+
+            {/* Inline Form to Record Payment */}
+            <form
+              onSubmit={handleAddPayment}
+              className="space-y-3 p-3 bg-slate-50 dark:bg-slate-800/60 rounded-lg border border-slate-200 dark:border-slate-700"
+            >
+              <span className="text-xs font-bold text-slate-800 dark:text-slate-200 block">
+                Record Payment
+              </span>
+              {paymentError && (
+                <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                  {paymentError}
+                </p>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                    Amount ($)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    placeholder="0.00"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs font-mono text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                    Method
+                  </label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="Check">Check</option>
+                    <option value="Credit Card">Credit Card</option>
+                    <option value="Zelle">Zelle</option>
+                    <option value="Wire / ACH">Wire / ACH</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-500 dark:text-slate-400 mb-1">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                    className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={submittingPayment}
+                className="w-full inline-flex items-center justify-center px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded transition-colors disabled:opacity-50 cursor-pointer"
+              >
+                {submittingPayment ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />
+                    Recording Payment...
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-3.5 h-3.5 mr-1" />
+                    Add Payment
+                  </>
+                )}
+              </button>
+            </form>
+
+            {/* Payment Ledger Table */}
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs text-left border-collapse">
+                <thead>
+                  <tr className="border-b border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400">
+                    <th className="py-2 px-2 font-bold uppercase">Date</th>
+                    <th className="py-2 px-2 font-bold uppercase">Method</th>
+                    <th className="py-2 px-2 font-bold uppercase text-right">
+                      Amount
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {order.payments && order.payments.length > 0 ? (
+                    order.payments.map((p) => (
+                      <tr key={p.id}>
+                        <td className="py-2 px-2 text-slate-700 dark:text-slate-300">
+                          {new Date(p.date).toLocaleDateString()}
+                        </td>
+                        <td className="py-2 px-2 font-medium text-slate-900 dark:text-slate-100">
+                          {p.method}
+                        </td>
+                        <td className="py-2 px-2 font-mono font-bold text-right text-emerald-600 dark:text-emerald-400">
+                          ${Number(p.amount).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={3}
+                        className="py-4 text-center text-slate-400 dark:text-slate-500 italic"
+                      >
+                        No payments recorded yet.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

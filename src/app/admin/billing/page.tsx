@@ -26,6 +26,12 @@ interface BillingOrder {
   discountAmt: number;
   depositPaid: number;
   finalPaymentReceived: number;
+  payments?: Array<{
+    id: string;
+    amount: number;
+    method: string;
+    date: string;
+  }>;
   completionDate?: string | null;
   createdAt: string;
 }
@@ -346,7 +352,10 @@ export default function PlatformBillingPage() {
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                       {billingData.orders.map((o) => {
-                        const totalCollected = (Number(o.depositPaid) || 0) + (Number(o.finalPaymentReceived) || 0);
+                        const totalCollected =
+                          o.payments && o.payments.length > 0
+                            ? o.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+                            : (Number(o.depositPaid) || 0) + (Number(o.finalPaymentReceived) || 0);
                         return (
                           <tr key={o.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40">
                             <td className="py-2.5 px-3 font-mono font-bold text-slate-900 dark:text-slate-100">

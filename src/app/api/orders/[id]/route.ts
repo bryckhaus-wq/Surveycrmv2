@@ -59,6 +59,9 @@ export async function GET(
             client: true,
           },
         },
+        payments: {
+          orderBy: { date: "desc" },
+        },
         documents: {
           orderBy: { uploadedAt: "desc" },
         },

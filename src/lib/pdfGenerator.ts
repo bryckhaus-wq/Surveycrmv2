@@ -381,6 +381,12 @@ export interface PDFOrderInvoiceData {
   depositPaid?: number;
   finalPaymentReceived?: number;
   taxRate?: number;
+  payments?: Array<{
+    id: string;
+    amount: number;
+    method: string;
+    date: string | Date;
+  }>;
   clientDueDate?: string | null;
   completionDate?: string | null;
   createdAt: string;
@@ -527,8 +533,12 @@ export function buildOrderInvoicePDFDoc(order: PDFOrderInvoiceData, settings?: S
   const discountAmt = Number(order.discountAmt) || 0;
   const depositPaid = Number(order.depositPaid) || 0;
   const finalPaymentReceived = Number(order.finalPaymentReceived) || 0;
+  const totalPaid =
+    order.payments && order.payments.length > 0
+      ? order.payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0)
+      : depositPaid + finalPaymentReceived;
   const subtotal = surveyPrice + miscAmt - discountAmt;
-  const balanceDue = subtotal - (depositPaid + finalPaymentReceived);
+  const balanceDue = subtotal - totalPaid;
   const surveyTypeName = order.surveyTypeCustom || order.surveyType?.name || "Professional Land Survey";
 
   doc.setFillColor(248, 250, 252);
@@ -576,7 +586,7 @@ export function buildOrderInvoicePDFDoc(order: PDFOrderInvoiceData, settings?: S
   doc.text(`$${subtotal.toFixed(2)}`, pageWidth - margin - 5, y + 6, { align: "right" });
 
   doc.text("Paid to Date:", pageWidth - margin - 70, y + 12);
-  doc.text(`-$${(depositPaid + finalPaymentReceived).toFixed(2)}`, pageWidth - margin - 5, y + 12, { align: "right" });
+  doc.text(`-$${totalPaid.toFixed(2)}`, pageWidth - margin - 5, y + 12, { align: "right" });
 
   doc.setFont("helvetica", "bold");
   doc.setFontSize(10);

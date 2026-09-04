@@ -21,6 +21,9 @@ export async function GET(
           surveyType: true,
           client: true,
           spoke: true,
+          payments: {
+            orderBy: { date: "desc" },
+          },
         },
       }),
       prisma.systemSettings.findUnique({
@@ -56,6 +59,7 @@ export async function GET(
         depositPaid: order.depositPaid,
         finalPaymentReceived: order.finalPaymentReceived,
         taxRate: order.taxRate,
+        payments: order.payments,
         clientDueDate: order.clientDueDate ? order.clientDueDate.toISOString() : null,
         completionDate: order.completionDate ? order.completionDate.toISOString() : null,
         createdAt: order.createdAt.toISOString(),
