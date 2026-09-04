@@ -41,33 +41,9 @@ export async function POST(
       );
     }
 
-    const rawRecipientEmail =
-      order.client?.email ||
-      order.quote?.client?.email ||
-      order.quote?.clientEmail;
-
-    if (!rawRecipientEmail) {
-      return NextResponse.json(
-        {
-          error: `Client "${order.clientName}" does not have an email address on file.`,
-        },
-        { status: 400 }
-      );
-    }
-
-    const sanitizedEmails = rawRecipientEmail
-      .split(",")
-      .map((e: string) => e.trim())
-      .filter(Boolean)
-      .join(", ");
-
-    if (!sanitizedEmails) {
-      return NextResponse.json(
-        {
-          error: `Client "${order.clientName}" does not have a valid email address.`,
-        },
-        { status: 400 }
-      );
+    const recipientEmail = order.clientEmail || order.client?.email;
+    if (!recipientEmail) {
+      return NextResponse.json({ error: "No email address found on file for this order." }, { status: 400 });
     }
 
     let emailBody =
@@ -97,7 +73,7 @@ export async function POST(
 
     await transporter.sendMail({
       from: fromAddress,
-      to: sanitizedEmails,
+      to: recipientEmail,
       subject: emailSubject,
       text: emailBody,
     });
@@ -107,7 +83,7 @@ export async function POST(
       data: {
         subject: emailSubject,
         body: emailBody,
-        sentTo: sanitizedEmails,
+        sentTo: recipientEmail,
         orderId: order.id,
       },
     });
@@ -117,16 +93,16 @@ export async function POST(
       "ORDER",
       order.id,
       "EMAIL_SENT",
-      `Sent Order Confirmation email to ${sanitizedEmails} (Order #${order.orderNumber})`,
+      `Sent Order Confirmation email to ${recipientEmail} (Order #${order.orderNumber})`,
       session.user.id
     );
 
     return NextResponse.json({
       success: true,
-      message: `Order confirmation successfully sent to ${sanitizedEmails}`,
+      message: `Order confirmation successfully sent to ${recipientEmail}`,
       subject: emailSubject,
       body: emailBody,
-      sentTo: sanitizedEmails,
+      sentTo: recipientEmail,
     });
   } catch (error: any) {
     console.error("Failed to send order confirmation email:", error);

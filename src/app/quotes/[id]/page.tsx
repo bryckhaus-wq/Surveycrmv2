@@ -662,7 +662,8 @@ export default function QuoteDetailPage() {
   const handleOpenEmailModal = () => {
     if (!quote) return;
     const company = settings?.companyName || "Survey CRM";
-    setEmailTo(quote.clientEmail || quote.client?.email || "");
+    const recipientEmail = clientEmail || quote.clientEmail || quote.client?.email || "";
+    setEmailTo(recipientEmail);
     setEmailSubject(`Survey Proposal from ${company} - Quote #${quote.quoteNumber}`);
     
     let defaultMsg =
@@ -683,7 +684,8 @@ export default function QuoteDetailPage() {
   const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!quote) return;
-    if (!emailTo.trim()) {
+    const recipientEmail = emailTo.trim() || clientEmail || quote.clientEmail || quote.client?.email;
+    if (!recipientEmail) {
       setEmailModalError("Please enter a valid recipient email address.");
       return;
     }

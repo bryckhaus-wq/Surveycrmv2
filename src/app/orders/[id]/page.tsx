@@ -774,14 +774,15 @@ export default function OrderDetailPage() {
 
   const handleConfirmOrder = async () => {
     if (!order) return;
-    const recipientEmail =
-      order.client?.email ||
-      order.quote?.client?.email ||
-      formData.clientEmail;
+    const recipientEmail = order.clientEmail || order.client?.email;
+    if (!recipientEmail) {
+      alert("This order does not have an email address on file.");
+      return;
+    }
 
     if (
       !confirm(
-        `Send Order Confirmation email to ${recipientEmail || "the client"}?`
+        `Send Order Confirmation email to ${recipientEmail}?`
       )
     ) {
       return;

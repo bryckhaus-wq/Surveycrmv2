@@ -21,22 +21,22 @@ export async function POST(
     const body = await req.json();
     const { pdfBase64, toEmail, subject, message } = body;
 
-    if (!toEmail) {
+    const quote = await prisma.quote.findUnique({
+      where: { id: params.id },
+      include: { client: true },
+    });
+
+    if (!quote) {
       return NextResponse.json(
-        { error: "Recipient email is required" },
-        { status: 400 }
+        { error: "Quote not found" },
+        { status: 404 }
       );
     }
 
-    const sanitizedEmails = String(toEmail)
-      .split(",")
-      .map((e: string) => e.trim())
-      .filter(Boolean)
-      .join(", ");
-
-    if (!sanitizedEmails) {
+    const recipientEmail = toEmail || quote.clientEmail || quote.client?.email;
+    if (!recipientEmail) {
       return NextResponse.json(
-        { error: "A valid recipient email address is required" },
+        { error: "No email address found on file for this quote." },
         { status: 400 }
       );
     }
@@ -53,11 +53,6 @@ export async function POST(
       port,
       secure: port === 465,
       auth: user ? { user, pass } : undefined,
-    });
-
-    const quote = await prisma.quote.findUnique({
-      where: { id: params.id },
-      include: { client: true },
     });
 
     const pdfBuffer = Buffer.from(pdfBase64, "base64");
@@ -78,7 +73,7 @@ export async function POST(
 
     await transporter.sendMail({
       from: fromAddress,
-      to: sanitizedEmails,
+      to: recipientEmail,
       subject: emailSubject,
       text: emailBody,
       attachments: [
@@ -95,14 +90,14 @@ export async function POST(
       data: {
         subject: emailSubject,
         body: emailBody,
-        sentTo: sanitizedEmails,
+        sentTo: recipientEmail,
         quoteId: params.id,
       },
     });
 
     return NextResponse.json({
       success: true,
-      message: `Proposal successfully sent to ${sanitizedEmails}`,
+      message: `Proposal successfully sent to ${recipientEmail}`,
     });
   } catch (error: any) {
     console.error("Failed to send quote proposal email:", error);
