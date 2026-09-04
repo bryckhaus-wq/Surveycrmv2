@@ -51,7 +51,9 @@ interface SystemSettingsData {
   logoUrl?: string | null;
   themeColor: string;
   proposalTerms?: string | null;
+  quoteEmailSubject?: string | null;
   quoteEmailTemplate?: string | null;
+  orderConfirmEmailSubject?: string | null;
   orderConfirmEmailTemplate?: string | null;
   updatedAt?: string;
 }
@@ -66,7 +68,9 @@ export default function WhiteLabelSettingsPage() {
     logoUrl: "",
     themeColor: "#0f172a",
     proposalTerms: "",
+    quoteEmailSubject: "",
     quoteEmailTemplate: "",
+    orderConfirmEmailSubject: "",
     orderConfirmEmailTemplate: "",
   });
 
@@ -204,7 +208,9 @@ export default function WhiteLabelSettingsPage() {
         logoUrl: data.logoUrl || "",
         themeColor: data.themeColor || "#0f172a",
         proposalTerms: data.proposalTerms || "",
+        quoteEmailSubject: data.quoteEmailSubject || "",
         quoteEmailTemplate: data.quoteEmailTemplate || "",
+        orderConfirmEmailSubject: data.orderConfirmEmailSubject || "",
         orderConfirmEmailTemplate: data.orderConfirmEmailTemplate || "",
       });
     } catch (err: any) {
@@ -303,7 +309,9 @@ export default function WhiteLabelSettingsPage() {
         logoUrl: data.logoUrl || "",
         themeColor: data.themeColor || "#0f172a",
         proposalTerms: data.proposalTerms || "",
+        quoteEmailSubject: data.quoteEmailSubject || "",
         quoteEmailTemplate: data.quoteEmailTemplate || "",
+        orderConfirmEmailSubject: data.orderConfirmEmailSubject || "",
         orderConfirmEmailTemplate: data.orderConfirmEmailTemplate || "",
       });
       setSuccessMessage("White-label system settings saved successfully.");
@@ -556,41 +564,79 @@ export default function WhiteLabelSettingsPage() {
           </h2>
 
           {/* Quote Email Template */}
-          <div className="space-y-2">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Quote Email Subject
+              </label>
+              <input
+                type="text"
+                value={settings.quoteEmailSubject || ""}
+                onChange={(e) => handleInputChange("quoteEmailSubject", e.target.value)}
+                placeholder="Survey Proposal from {{companyName}} - Quote #{{quoteNumber}}"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-2">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Quote Email Template
               </label>
-              <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">
-                Available placeholders: <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;clientName&#125;&#125;</code>, <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;quoteNumber&#125;&#125;</code>, <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;address&#125;&#125;</code>
-              </span>
+              <textarea
+                rows={6}
+                value={settings.quoteEmailTemplate || ""}
+                onChange={(e) => handleInputChange("quoteEmailTemplate", e.target.value)}
+                placeholder="Dear {{clientName}},\n\nPlease find attached the official Survey Proposal for your project at {{address}} (Quote #{{quoteNumber}}).\n\nInvestment: {{priceDue}}\nEstimated Completion: {{estimatedCompletion}}\nFile #: {{clientFileNumber}}\n\nBest regards,\nSurvey Team"
+                className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono leading-relaxed text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="text-[11px] text-blue-600 dark:text-blue-400 font-medium flex flex-wrap gap-1 items-center">
+                <span>Available placeholders:</span>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;clientName&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;quoteNumber&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;address&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;priceDue&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;estimatedCompletion&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;clientFileNumber&#125;&#125;</code>
+              </div>
             </div>
-            <textarea
-              rows={6}
-              value={settings.quoteEmailTemplate || ""}
-              onChange={(e) => handleInputChange("quoteEmailTemplate", e.target.value)}
-              placeholder="Dear {{clientName}},\n\nPlease find attached the official Survey Proposal for your project at {{address}} (Quote #{{quoteNumber}}).\n\nBest regards,\nSurvey Team"
-              className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono leading-relaxed text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
           </div>
 
           {/* Order Confirmation Template */}
-          <div className="space-y-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+          <div className="space-y-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            <div>
+              <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1">
+                Order Confirmation Subject
+              </label>
+              <input
+                type="text"
+                value={settings.orderConfirmEmailSubject || ""}
+                onChange={(e) => handleInputChange("orderConfirmEmailSubject", e.target.value)}
+                placeholder="Order Confirmation: {{orderNumber}} - {{address}}"
+                className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div className="space-y-2">
               <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Order Confirmation Template
               </label>
-              <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">
-                Available placeholders: <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;clientName&#125;&#125;</code>, <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;orderNumber&#125;&#125;</code>, <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;address&#125;&#125;</code>
-              </span>
+              <textarea
+                rows={6}
+                value={settings.orderConfirmEmailTemplate || ""}
+                onChange={(e) => handleInputChange("orderConfirmEmailTemplate", e.target.value)}
+                placeholder="Dear {{clientName}},\n\nYour work order #{{orderNumber}} for {{address}} has been confirmed and placed into our active project schedule.\n\nBalance Due: {{priceDue}}\nEstimated Completion: {{estimatedCompletion}}\nFile #: {{clientFileNumber}}\n\nThank you for your business!"
+                className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono leading-relaxed text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="text-[11px] text-blue-600 dark:text-blue-400 font-medium flex flex-wrap gap-1 items-center">
+                <span>Available placeholders:</span>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;clientName&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;orderNumber&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;address&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;priceDue&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;estimatedCompletion&#125;&#125;</code>
+                <code className="px-1 py-0.5 bg-blue-50 dark:bg-blue-950/60 rounded font-mono text-[10px]">&#123;&#123;clientFileNumber&#125;&#125;</code>
+              </div>
             </div>
-            <textarea
-              rows={6}
-              value={settings.orderConfirmEmailTemplate || ""}
-              onChange={(e) => handleInputChange("orderConfirmEmailTemplate", e.target.value)}
-              placeholder="Dear {{clientName}},\n\nYour work order #{{orderNumber}} for {{address}} has been confirmed and placed into our active project schedule.\n\nThank you for your business!"
-              className="w-full px-3.5 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-mono leading-relaxed text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
           </div>
         </div>
 

@@ -195,6 +195,8 @@ model Order {
   spokeId           String?
   spoke             Spoke?      @relation(fields: [spokeId], references: [id])
   status            OrderStatus @default(FIELD_PENDING)
+  clientFileNumber  String?
+  estimatedDelivery String?
   fieldDueDate      DateTime?
   fieldNotes        String?     @db.Text
 
@@ -401,7 +403,9 @@ model SystemSettings {
   logoUrl                   String?
   themeColor                String   @default("#0f172a") // Tailwind slate-900
   proposalTerms             String?  @db.Text
+  quoteEmailSubject         String?
   quoteEmailTemplate        String?  @db.Text
+  orderConfirmEmailSubject  String?
   orderConfirmEmailTemplate String?  @db.Text
   updatedAt                 DateTime @updatedAt
 }

@@ -70,6 +70,8 @@ export async function POST(
         surveyTypeId: quote.surveyTypeId,
         surveyPrice: Number(quote.price) || 0,
         closingDate: quote.closingDate || null,
+        clientFileNumber: quote.clientFileNumber || null,
+        estimatedDelivery: quote.estimatedDelivery || null,
         status: "FIELD_PENDING",
       },
       include: {

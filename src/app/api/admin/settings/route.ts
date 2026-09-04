@@ -39,7 +39,7 @@ export async function PUT(req: Request) {
     }
 
     const body = await req.json();
-    const { companyName, address, phone, email, logoUrl, themeColor, proposalTerms, quoteEmailTemplate, orderConfirmEmailTemplate } = body;
+    const { companyName, address, phone, email, logoUrl, themeColor, proposalTerms, quoteEmailSubject, quoteEmailTemplate, orderConfirmEmailSubject, orderConfirmEmailTemplate } = body;
 
     const settings = await prisma.systemSettings.upsert({
       where: { id: "default" },
@@ -51,7 +51,9 @@ export async function PUT(req: Request) {
         ...(logoUrl !== undefined && { logoUrl: logoUrl || null }),
         ...(themeColor !== undefined && { themeColor: themeColor || "#0f172a" }),
         ...(proposalTerms !== undefined && { proposalTerms: proposalTerms ? proposalTerms.trim() : null }),
+        ...(quoteEmailSubject !== undefined && { quoteEmailSubject: quoteEmailSubject ? quoteEmailSubject.trim() : null }),
         ...(quoteEmailTemplate !== undefined && { quoteEmailTemplate: quoteEmailTemplate ? quoteEmailTemplate.trim() : null }),
+        ...(orderConfirmEmailSubject !== undefined && { orderConfirmEmailSubject: orderConfirmEmailSubject ? orderConfirmEmailSubject.trim() : null }),
         ...(orderConfirmEmailTemplate !== undefined && { orderConfirmEmailTemplate: orderConfirmEmailTemplate ? orderConfirmEmailTemplate.trim() : null }),
       },
       create: {
@@ -63,7 +65,9 @@ export async function PUT(req: Request) {
         logoUrl: logoUrl || null,
         themeColor: themeColor || "#0f172a",
         proposalTerms: proposalTerms ? proposalTerms.trim() : null,
+        quoteEmailSubject: quoteEmailSubject ? quoteEmailSubject.trim() : null,
         quoteEmailTemplate: quoteEmailTemplate ? quoteEmailTemplate.trim() : null,
+        orderConfirmEmailSubject: orderConfirmEmailSubject ? orderConfirmEmailSubject.trim() : null,
         orderConfirmEmailTemplate: orderConfirmEmailTemplate ? orderConfirmEmailTemplate.trim() : null,
       },
     });

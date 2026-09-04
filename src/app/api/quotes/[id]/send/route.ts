@@ -56,26 +56,31 @@ export async function POST(
     });
 
     const pdfBuffer = Buffer.from(pdfBase64, "base64");
-    const emailSubject =
-      subject ||
-      `Survey Proposal from ${settings?.companyName || "Survey CRM"} - Quote #${quote?.quoteNumber || params.id}`;
 
-    let emailBody = message;
-    if (!emailBody) {
-      emailBody = settings?.quoteEmailTemplate || "Please see the attached quote.";
-    }
-    if (quote) {
-      emailBody = emailBody
-        .replace(/{{clientName}}/g, quote.client?.name || quote.clientName || "Client")
-        .replace(/{{quoteNumber}}/g, String(quote.quoteNumber))
-        .replace(/{{address}}/g, quote.address || "");
+    let finalSubject = subject || settings?.quoteEmailSubject || `Quote ${quote.quoteNumber}`;
+    let finalBody = message || settings?.quoteEmailTemplate || "Please see the attached quote.";
+
+    const priceNum = Number(quote.price) || 0;
+    const replacements: Record<string, string> = {
+      "{{clientName}}": quote.clientName || quote.client?.name || "Client",
+      "{{quoteNumber}}": String(quote.quoteNumber),
+      "{{address}}": quote.address || "",
+      "{{priceDue}}": `$${priceNum.toFixed(2)}`,
+      "{{estimatedCompletion}}": quote.estimatedDelivery || "TBD",
+      "{{clientFileNumber}}": quote.clientFileNumber || "N/A",
+      "{{companyName}}": settings?.companyName || "Survey CRM",
+    };
+
+    for (const [key, value] of Object.entries(replacements)) {
+      finalSubject = finalSubject.replace(new RegExp(key, "g"), value);
+      finalBody = finalBody.replace(new RegExp(key, "g"), value);
     }
 
     await transporter.sendMail({
       from: fromAddress,
       to: recipientEmail,
-      subject: emailSubject,
-      text: emailBody,
+      subject: finalSubject,
+      text: finalBody,
       attachments: [
         {
           filename: "Quote_Proposal.pdf",
@@ -88,8 +93,8 @@ export async function POST(
     // Record email communication history in EmailLog
     await prisma.emailLog.create({
       data: {
-        subject: emailSubject,
-        body: emailBody,
+        subject: finalSubject,
+        body: finalBody,
         sentTo: recipientEmail,
         quoteId: params.id,
       },
