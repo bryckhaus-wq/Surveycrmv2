@@ -6,7 +6,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import Navbar from "@/components/Navbar";
 
 export const metadata: Metadata = {
-  title: "MJS Survey Management",
+  title: "Survey Manager",
   description: "Survey Quote, Order & Multi-Spoke Asset Management System",
 };
 
