@@ -18,7 +18,7 @@ export async function POST(
   }
 
   try {
-    const { subject, body, attachments = [] } = await req.json();
+    const { toEmail, subject, body, attachments = [] } = await req.json();
 
     if (!subject || !body) {
       return NextResponse.json(
@@ -46,29 +46,9 @@ export async function POST(
       );
     }
 
-    const rawRecipientEmail =
-      (order as any).client?.email ||
-      (order as any).quote?.client?.email ||
-      (order as any).quote?.clientEmail;
-
-    if (!rawRecipientEmail) {
-      return NextResponse.json(
-        { error: `Client "${order.clientName}" does not have an email address on file.` },
-        { status: 400 }
-      );
-    }
-
-    const sanitizedEmails = rawRecipientEmail
-      .split(",")
-      .map((e: string) => e.trim())
-      .filter(Boolean)
-      .join(", ");
-
-    if (!sanitizedEmails) {
-      return NextResponse.json(
-        { error: `Client "${order.clientName}" does not have a valid email address.` },
-        { status: 400 }
-      );
+    const recipientEmail = toEmail || order.clientEmail || order.client?.email;
+    if (!recipientEmail) {
+      return NextResponse.json({ error: "No email address provided." }, { status: 400 });
     }
 
     // SMTP Transporter configuration
@@ -118,7 +98,7 @@ export async function POST(
 
     await transporter.sendMail({
       from: fromAddress,
-      to: sanitizedEmails,
+      to: recipientEmail,
       subject: subject.trim(),
       text: body.trim(),
       ...(validAttachments.length > 0 && { attachments: validAttachments }),
@@ -129,7 +109,7 @@ export async function POST(
       data: {
         subject: subject.trim(),
         body: body.trim(),
-        sentTo: sanitizedEmails,
+        sentTo: recipientEmail,
         orderId: params.id,
       },
     });
@@ -149,7 +129,7 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: `Email successfully sent to ${sanitizedEmails}`,
+      message: `Email successfully sent to ${recipientEmail}`,
     });
   } catch (error: any) {
     console.error("Failed to send order email to client:", error);
