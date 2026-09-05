@@ -92,6 +92,10 @@ export default function CompanyProfileSettingsPage() {
   const [newLabel, setNewLabel] = useState("");
   const [newUrl, setNewUrl] = useState("");
   const [creatingCountyLink, setCreatingCountyLink] = useState(false);
+  const [countyCsvFile, setCountyCsvFile] = useState<File | null>(null);
+  const [importingCountyCsv, setImportingCountyCsv] = useState(false);
+  const [countyCsvMessage, setCountyCsvMessage] = useState<string | null>(null);
+  const [countyCsvError, setCountyCsvError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchSettings();
@@ -187,6 +191,38 @@ export default function CompanyProfileSettingsPage() {
       setError(err.message || "Failed to add county link.");
     } finally {
       setCreatingCountyLink(false);
+    }
+  };
+
+  const handleUploadCountyCsv = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!countyCsvFile) return;
+
+    try {
+      setImportingCountyCsv(true);
+      setCountyCsvError(null);
+      setCountyCsvMessage(null);
+
+      const formData = new FormData();
+      formData.append("file", countyCsvFile);
+
+      const res = await fetch("/api/admin/county-links/import", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to import CSV");
+      }
+
+      setCountyCsvMessage(data.message || `Successfully imported ${data.count} county link records.`);
+      setCountyCsvFile(null);
+      await fetchCountyLinks();
+    } catch (err: any) {
+      setCountyCsvError(err.message || "Failed to import county links CSV.");
+    } finally {
+      setImportingCountyCsv(false);
     }
   };
 
@@ -801,6 +837,64 @@ export default function CompanyProfileSettingsPage() {
             </button>
           </div>
         </form>
+
+        {/* Bulk Import CSV Section */}
+        <div className="bg-slate-50 dark:bg-slate-800/60 p-4 rounded-xl border border-slate-200 dark:border-slate-700 space-y-3">
+          <div className="flex items-center space-x-2">
+            <Upload className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <h3 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+              Bulk Import County Links via CSV
+            </h3>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            Upload a spreadsheet with column headers: <code className="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-[10px]">State</code>, <code className="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-[10px]">County</code>, <code className="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-[10px]">URL</code> (and optional <code className="bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded font-mono text-[10px]">Label</code>).
+          </p>
+
+          {countyCsvError && (
+            <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg text-xs text-rose-800 dark:text-rose-300 flex items-center space-x-2">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>{countyCsvError}</span>
+            </div>
+          )}
+          {countyCsvMessage && (
+            <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 rounded-lg text-xs text-emerald-800 dark:text-emerald-300 flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              <span>{countyCsvMessage}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleUploadCountyCsv} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            <input
+              type="file"
+              accept=".csv"
+              disabled={importingCountyCsv}
+              onChange={(e) => {
+                const file = e.target.files?.[0] || null;
+                setCountyCsvFile(file);
+                setCountyCsvError(null);
+                setCountyCsvMessage(null);
+              }}
+              className="flex-1 text-xs text-slate-700 dark:text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 dark:file:bg-blue-950/60 dark:file:text-blue-300 hover:file:bg-blue-100 cursor-pointer"
+            />
+            <button
+              type="submit"
+              disabled={importingCountyCsv || !countyCsvFile}
+              className="inline-flex items-center justify-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer disabled:cursor-not-allowed whitespace-nowrap"
+            >
+              {importingCountyCsv ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-3.5 h-3.5 mr-1.5" />
+                  Upload & Import CSV
+                </>
+              )}
+            </button>
+          </form>
+        </div>
 
         {/* Existing County Links Table */}
         <div className="border border-slate-200 dark:border-slate-800 rounded-lg overflow-hidden">
