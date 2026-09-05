@@ -152,7 +152,7 @@ export default function NewQuotePage() {
     try {
       const [clientsRes, spokesRes, stRes, usersRes] = await Promise.all([
         fetch("/api/clients"),
-        fetch("/api/admin/spokes"),
+        fetch("/api/admin/spokes?active=true"),
         fetch("/api/admin/survey-types"),
         fetch("/api/admin/users"),
       ]);
@@ -164,9 +164,10 @@ export default function NewQuotePage() {
 
       if (spokesRes.ok) {
         const sData: SpokeOption[] = await spokesRes.json();
-        setSpokes(sData);
-        if (sData.length > 0) {
-          setSpokeId(sData[0].id);
+        const activeSpokes = sData.filter((s: any) => s.isActive !== false);
+        setSpokes(activeSpokes);
+        if (activeSpokes.length > 0) {
+          setSpokeId(activeSpokes[0].id);
         }
       }
 

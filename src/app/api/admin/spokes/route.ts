@@ -6,13 +6,16 @@ import { hasAdminAccess } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) return new NextResponse("Unauthorized", { status: 401 });
-  if (!hasAdminAccess(session.user.role)) return new NextResponse("Forbidden", { status: 403 });
+
+  const { searchParams } = new URL(req.url);
+  const activeOnly = searchParams.get("active") === "true" || searchParams.get("isActive") === "true";
 
   try {
     const spokes = await prisma.spoke.findMany({
+      where: activeOnly ? { isActive: true } : undefined,
       include: {
         _count: {
           select: {

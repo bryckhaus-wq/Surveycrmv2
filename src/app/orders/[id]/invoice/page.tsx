@@ -200,7 +200,7 @@ export default function OrderInvoicePage() {
             )}
             <div>
               <h1 className="text-2xl font-black tracking-tight uppercase">
-                {settings?.companyName || order.spoke?.name || "MJS LAND SURVEYING"}
+                {settings?.companyName || order.spoke?.name || "LAND SURVEYING"}
               </h1>
               <div className="text-xs text-black mt-1 space-y-0.5">
                 {settings?.address ? (
@@ -422,7 +422,7 @@ export default function OrderInvoicePage() {
         {/* Payment Remittance & Instructions */}
         <div className="mt-12 pt-6 border-t border-black text-xs space-y-1 text-zinc-700">
           <p className="font-bold text-black uppercase">Payment Terms & Remittance Instructions:</p>
-          <p>Please make all checks payable to: <span className="font-bold text-black">{settings?.companyName || order.spoke?.name || "MJS Land Surveying"}</span>.</p>
+          <p>Please make all checks payable to: <span className="font-bold text-black">{settings?.companyName || order.spoke?.name || "Land Surveying"}</span>.</p>
           <p>If you have any questions concerning this invoice, please reference Order #{order.orderNumber}.</p>
           <p className="pt-2 italic text-black font-semibold">Thank you for your business!</p>
         </div>

@@ -94,7 +94,7 @@ We wanted to follow up on the survey proposal prepared for you. You can review y
 Please let us know if you have any questions or are ready to proceed with scheduling your survey.
 
 Best regards,
-MJS Land Surveying Team`;
+Survey Team`;
 
     const templateSubject = template?.subject || defaultSubject;
     const templateBody = template?.body || defaultBody;

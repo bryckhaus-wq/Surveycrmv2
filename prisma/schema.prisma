@@ -50,6 +50,7 @@ model Spoke {
   zip           String?
   lbNumber      String?
   dailyCapacity Int      @default(15)
+  isActive      Boolean  @default(true)
   users            User[]
   quotes           Quote[]
   orders           Order[]

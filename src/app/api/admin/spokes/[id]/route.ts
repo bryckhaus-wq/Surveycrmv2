@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { hasAdminAccess } from "@/lib/rbac";
 
 export const dynamic = "force-dynamic";
 
@@ -50,6 +53,10 @@ export async function PUT(
   req: Request,
   { params }: { params: { id: string } }
 ) {
+  const session = await getServerSession(authOptions);
+  if (!session) return new NextResponse("Unauthorized", { status: 401 });
+  if (!hasAdminAccess(session.user.role)) return new NextResponse("Forbidden", { status: 403 });
+
   try {
     const body = await req.json();
     const {
@@ -61,6 +68,7 @@ export async function PUT(
       zip,
       lbNumber,
       dailyCapacity,
+      isActive,
     } = body;
 
     const updated = await prisma.spoke.update({
@@ -82,6 +90,9 @@ export async function PUT(
         ...(dailyCapacity !== undefined && {
           dailyCapacity: parseInt(dailyCapacity, 10),
         }),
+        ...(isActive !== undefined && {
+          isActive: Boolean(isActive),
+        }),
       },
     });
 
@@ -94,3 +105,4 @@ export async function PUT(
     );
   }
 }
+

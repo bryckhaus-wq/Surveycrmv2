@@ -671,7 +671,7 @@ export default function OrderDetailPage() {
           `Update regarding your survey project for ${order.address} (Order #${order.orderNumber})`
         );
         setEmailBody(
-          `Hello ${order.client?.name || order.clientName},\n\nWe are writing to provide you with an update regarding your survey project for ${order.address}.\n\nOrder Details:\n- Order #: ${order.orderNumber}\n- Survey Type: ${formData.surveyType || order.surveyTypeCustom || order.surveyType?.name}\n- Branch: ${order.spoke?.name || ""}\n\nPlease feel free to reply directly to this email if you have any questions.\n\nBest regards,\nMJS Land Surveying Team`
+          `Hello ${order.client?.name || order.clientName},\n\nWe are writing to provide you with an update regarding your survey project for ${order.address}.\n\nOrder Details:\n- Order #: ${order.orderNumber}\n- Survey Type: ${formData.surveyType || order.surveyTypeCustom || order.surveyType?.name}\n- Branch: ${order.spoke?.name || ""}\n\nPlease feel free to reply directly to this email if you have any questions.\n\nBest regards,\nSurvey Team`
         );
       }
     } catch (err: any) {
@@ -1646,7 +1646,7 @@ export default function OrderDetailPage() {
                   onChange={(e) => handleUpdateStatus(e.target.value)}
                   className="w-full px-3 py-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
                 >
-                  <option value="NEW">NEW</option>
+                  <option value="NEW">New</option>
                   <option value="FIELD_PENDING">FIELD PENDING</option>
                   <option value="DRAFTING">CAD DRAFTING</option>
                   <option value="REVIEW">SURVEYOR REVIEW</option>

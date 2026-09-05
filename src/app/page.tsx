@@ -34,6 +34,7 @@ export default async function DashboardPage() {
     completedOrdersCount,
     myPendingJobsCount,
     recentOrders,
+    settings,
   ] = await Promise.all([
     !isFieldWorker
       ? prisma.quote.count({
@@ -79,6 +80,7 @@ export default async function DashboardPage() {
         },
       },
     }),
+    prisma.systemSettings.findFirst(),
   ]);
 
   const getStatusBadge = (status: string) => {
@@ -128,7 +130,7 @@ export default async function DashboardPage() {
             <span>{isFieldWorker ? "Field Crew Operations" : "Executive Overview"}</span>
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight">
-            MJS Survey Management Platform
+            {settings?.companyName ? `${settings.companyName} Management Platform` : "Survey Management Platform"}
           </h1>
           <p className="text-slate-300 dark:text-slate-400 text-sm mt-1 max-w-2xl">
             {isFieldWorker

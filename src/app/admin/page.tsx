@@ -55,6 +55,7 @@ interface SpokeItem {
   zip?: string | null;
   lbNumber?: string | null;
   dailyCapacity: number;
+  isActive?: boolean;
   _count?: {
     users: number;
     quotes: number;
@@ -146,6 +147,20 @@ export default function AdminPage() {
   const [editNewExclusionInput, setEditNewExclusionInput] = useState("");
   const [updatingType, setUpdatingType] = useState(false);
   const [editTypeError, setEditTypeError] = useState<string | null>(null);
+
+  // Edit Spoke Modal State
+  const [editingSpoke, setEditingSpoke] = useState<SpokeItem | null>(null);
+  const [editSpokeName, setEditSpokeName] = useState("");
+  const [editSpokeShort, setEditSpokeShort] = useState("");
+  const [editSpokeLb, setEditSpokeLb] = useState("");
+  const [editSpokeCapacity, setEditSpokeCapacity] = useState("15");
+  const [editSpokeAddress, setEditSpokeAddress] = useState("");
+  const [editSpokeCity, setEditSpokeCity] = useState("");
+  const [editSpokeState, setEditSpokeState] = useState("");
+  const [editSpokeZip, setEditSpokeZip] = useState("");
+  const [editSpokeIsActive, setEditSpokeIsActive] = useState(true);
+  const [updatingSpoke, setUpdatingSpoke] = useState(false);
+  const [editSpokeError, setEditSpokeError] = useState<string | null>(null);
 
   useEffect(() => {
     if (role === Role.ADMIN) {
@@ -469,6 +484,103 @@ export default function AdminPage() {
     }
   };
 
+  const handleOpenEditSpoke = (s: SpokeItem) => {
+    setEditingSpoke(s);
+    setEditSpokeName(s.name);
+    setEditSpokeShort(s.shortName);
+    setEditSpokeLb(s.lbNumber || "");
+    setEditSpokeCapacity(String(s.dailyCapacity || 15));
+    setEditSpokeAddress(s.address || "");
+    setEditSpokeCity(s.city || "");
+    setEditSpokeState(s.state || "");
+    setEditSpokeZip(s.zip || "");
+    setEditSpokeIsActive(s.isActive !== false);
+    setEditSpokeError(null);
+  };
+
+  const handleUpdateSpoke = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSpoke) return;
+    setEditSpokeError(null);
+
+    if (!editSpokeName.trim() || !editSpokeShort.trim()) {
+      setEditSpokeError("Branch Name and Short Code are required.");
+      return;
+    }
+
+    try {
+      setUpdatingSpoke(true);
+      const res = await fetch(`/api/admin/spokes/${editingSpoke.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editSpokeName.trim(),
+          shortName: editSpokeShort.trim().toUpperCase(),
+          lbNumber: editSpokeLb.trim() || null,
+          dailyCapacity: parseInt(editSpokeCapacity, 10) || 15,
+          address: editSpokeAddress.trim() || null,
+          city: editSpokeCity.trim() || null,
+          state: editSpokeState.trim().toUpperCase() || null,
+          zip: editSpokeZip.trim() || null,
+          isActive: editSpokeIsActive,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update spoke branch");
+      }
+
+      setEditingSpoke(null);
+      fetchSpokes();
+    } catch (err: any) {
+      setEditSpokeError(err.message || "Failed to update spoke.");
+    } finally {
+      setUpdatingSpoke(false);
+    }
+  };
+
+  const handleToggleSpokeActive = async (s: SpokeItem) => {
+    try {
+      const res = await fetch(`/api/admin/spokes/${s.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          isActive: !(s.isActive !== false),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to toggle spoke status");
+      }
+      fetchSpokes();
+    } catch (err: any) {
+      alert(err.message || "Failed to update spoke status");
+    }
+  };
+
+  const handleResetPassword = async (u: StaffUser) => {
+    const newPassword = window.prompt(`Enter new password for ${u.name}:`);
+    if (!newPassword || !newPassword.trim()) return;
+
+    try {
+      const res = await fetch(`/api/admin/users/${u.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: newPassword.trim() }),
+      });
+
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || "Failed to reset password");
+      }
+
+      alert(`Password for ${u.name} has been successfully updated.`);
+    } catch (err: any) {
+      alert(`Error: ${err.message || "Failed to reset password"}`);
+    }
+  };
+
   // Access Denied Screen if role != ADMIN
   if (role !== Role.ADMIN) {
     return (
@@ -526,7 +638,7 @@ export default function AdminPage() {
             className="inline-flex items-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-xl shadow-sm transition-colors"
           >
             <ShieldAlert className="w-4 h-4 mr-1.5 text-blue-600 dark:text-blue-400" />
-            White-Label Settings
+            Company Profile
           </Link>
           <Link
             href="/admin/billing"
@@ -658,11 +770,18 @@ export default function AdminPage() {
           {spokes.map((s) => (
             <div key={s.id} className="p-3.5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-800/50">
               <div className="flex items-center space-x-3">
-                <span className="w-9 h-9 rounded-lg bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-bold font-mono text-sm flex items-center justify-center border border-emerald-200 dark:border-emerald-800">
+                <span className={`w-9 h-9 rounded-lg ${s.isActive !== false ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800" : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700"} font-bold font-mono text-sm flex items-center justify-center border`}>
                   {s.shortName}
                 </span>
                 <div>
-                  <div className="font-bold text-sm text-slate-900 dark:text-slate-100">{s.name}</div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-bold text-sm text-slate-900 dark:text-slate-100">{s.name}</span>
+                    {s.isActive === false && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-rose-100 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                        Disabled
+                      </span>
+                    )}
+                  </div>
                   <div className="text-slate-500 dark:text-slate-400">
                     {s.city ? `${s.city}, ${s.state || ""}` : "Regional Hub"} {s.lbNumber && `• License: ${s.lbNumber}`}
                   </div>
@@ -675,6 +794,27 @@ export default function AdminPage() {
                 </div>
                 <div className="text-slate-500 dark:text-slate-400">
                   {s._count?.users || 0} staff • {s._count?.quotes || 0} quotes • {s._count?.orders || 0} orders
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenEditSpoke(s)}
+                    className="inline-flex items-center px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-emerald-50 dark:hover:bg-emerald-900/40 text-slate-700 dark:text-slate-300 hover:text-emerald-600 dark:hover:text-emerald-400 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                  >
+                    <Pencil className="w-3 h-3 mr-1" />
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleSpokeActive(s)}
+                    className={`inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors ${
+                      s.isActive !== false
+                        ? "bg-slate-100 dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-900/40 text-rose-600 dark:text-rose-400 border-slate-200 dark:border-slate-700"
+                        : "bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-700"
+                    }`}
+                  >
+                    {s.isActive !== false ? "Disable" : "Enable"}
+                  </button>
                 </div>
               </div>
             </div>
@@ -859,7 +999,7 @@ export default function AdminPage() {
                           <td className="py-2.5 px-3 whitespace-nowrap text-right font-medium text-slate-800 dark:text-slate-200">
                             {u.commissionRate !== undefined && u.commissionRate !== null ? `${u.commissionRate}%` : "0%"}
                           </td>
-                          <td className="py-2.5 px-3 whitespace-nowrap text-right">
+                          <td className="py-2.5 px-3 whitespace-nowrap text-right space-x-1.5">
                             <button
                               type="button"
                               onClick={() => handleOpenEditUser(u)}
@@ -867,6 +1007,14 @@ export default function AdminPage() {
                             >
                               <Pencil className="w-3 h-3 mr-1" />
                               Edit
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleResetPassword(u)}
+                              className="inline-flex items-center px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-900/40 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                            >
+                              <Lock className="w-3 h-3 mr-1" />
+                              Reset Password
                             </button>
                           </td>
                         </tr>
@@ -1433,6 +1581,159 @@ export default function AdminPage() {
                 >
                   {updatingType && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
                   {updatingType ? "Saving..." : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT SPOKE MODAL */}
+      {editingSpoke && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-150">
+          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 w-full max-w-lg overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/50">
+              <div className="flex items-center space-x-2">
+                <MapPin className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">
+                  Edit Regional Branch (Spoke)
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingSpoke(null)}
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleUpdateSpoke} className="p-6 overflow-y-auto space-y-4">
+              {editSpokeError && (
+                <div className="p-3 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 rounded-lg text-xs text-rose-800 dark:text-rose-300 flex items-center space-x-2">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  <span>{editSpokeError}</span>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Branch Name *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editSpokeName}
+                    onChange={(e) => setEditSpokeName(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Short Code *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={4}
+                    value={editSpokeShort}
+                    onChange={(e) => setEditSpokeShort(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs font-mono uppercase focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    LB # (Survey License)
+                  </label>
+                  <input
+                    type="text"
+                    value={editSpokeLb}
+                    onChange={(e) => setEditSpokeLb(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    City
+                  </label>
+                  <input
+                    type="text"
+                    value={editSpokeCity}
+                    onChange={(e) => setEditSpokeCity(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    State (2 Letters)
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={editSpokeState}
+                    onChange={(e) => setEditSpokeState(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs font-mono uppercase focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Street Address
+                  </label>
+                  <input
+                    type="text"
+                    value={editSpokeAddress}
+                    onChange={(e) => setEditSpokeAddress(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
+                    Daily Capacity
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editSpokeCapacity}
+                    onChange={(e) => setEditSpokeCapacity(e.target.value)}
+                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center pt-5">
+                  <label className="flex items-center space-x-2 text-xs font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editSpokeIsActive}
+                      onChange={(e) => setEditSpokeIsActive(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 rounded border-slate-300 dark:border-slate-700 focus:ring-emerald-500"
+                    />
+                    <span>Active Status</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingSpoke(null)}
+                  className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={updatingSpoke}
+                  className="inline-flex items-center px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50"
+                >
+                  {updatingSpoke && <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" />}
+                  {updatingSpoke ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>

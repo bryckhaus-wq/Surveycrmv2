@@ -1453,7 +1453,7 @@ export default function QuoteDetailPage() {
                 onChange={(e) => handleStatusChange(e.target.value)}
                 className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="NEW">NEW</option>
+                <option value="NEW">New</option>
                 <option value="WAITING_ON_CLIENT">WAITING ON CLIENT</option>
                 <option value="WAITING_ON_MARKETER">WAITING ON MARKETER</option>
                 <option value="INFO_REQUEST">INFO REQUEST</option>

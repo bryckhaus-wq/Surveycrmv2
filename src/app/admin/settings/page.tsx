@@ -58,7 +58,7 @@ interface SystemSettingsData {
   updatedAt?: string;
 }
 
-export default function WhiteLabelSettingsPage() {
+export default function CompanyProfileSettingsPage() {
   const [settings, setSettings] = useState<SystemSettingsData>({
     id: "default",
     companyName: "Survey CRM",
@@ -314,7 +314,7 @@ export default function WhiteLabelSettingsPage() {
         orderConfirmEmailSubject: data.orderConfirmEmailSubject || "",
         orderConfirmEmailTemplate: data.orderConfirmEmailTemplate || "",
       });
-      setSuccessMessage("White-label system settings saved successfully.");
+      setSuccessMessage("Company profile settings saved successfully.");
     } catch (err: any) {
       console.error("Save settings error:", err);
       setError(err.message || "Failed to save settings.");
@@ -327,7 +327,7 @@ export default function WhiteLabelSettingsPage() {
     return (
       <div className="p-12 text-center text-slate-500 dark:text-slate-400">
         <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
-        <p className="text-sm font-medium">Loading white-label configurations...</p>
+        <p className="text-sm font-medium">Loading company profile configurations...</p>
       </div>
     );
   }
@@ -346,7 +346,7 @@ export default function WhiteLabelSettingsPage() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight">
-              White-Label Settings
+              Company Profile
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               Customize your company branding, invoice headers, and theme appearance.
@@ -655,7 +655,7 @@ export default function WhiteLabelSettingsPage() {
             ) : (
               <>
                 <Save className="w-4 h-4 mr-2" />
-                Save White-Label Settings
+                Save Company Profile
               </>
             )}
           </button>

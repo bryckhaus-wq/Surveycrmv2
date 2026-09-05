@@ -40,7 +40,7 @@ export default function Navbar() {
     logoUrl?: string | null;
     themeColor: string;
   }>({
-    companyName: "MJS Surveys",
+    companyName: "Survey CRM",
     logoUrl: null,
     themeColor: "#0f172a",
   });
@@ -52,7 +52,7 @@ export default function Navbar() {
       .then((data) => {
         if (data) {
           setBrandSettings({
-            companyName: data.companyName || "MJS Surveys",
+            companyName: data.companyName || "Survey CRM",
             logoUrl: data.logoUrl || null,
             themeColor: data.themeColor || "#0f172a",
           });

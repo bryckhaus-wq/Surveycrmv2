@@ -77,15 +77,17 @@ Notes: ${notes}`;
     // Resolve target spoke/branch if provided
     let targetSpokeId = spokeId || null;
     if (targetSpokeId) {
-      const spokeExists = await prisma.spoke.findUnique({
-        where: { id: targetSpokeId },
+      const spokeExists = await prisma.spoke.findFirst({
+        where: { id: targetSpokeId, isActive: true },
       });
       if (!spokeExists) {
         targetSpokeId = null;
       }
     }
     if (!targetSpokeId) {
-      const firstSpoke = await prisma.spoke.findFirst();
+      const firstSpoke = await prisma.spoke.findFirst({
+        where: { isActive: true },
+      });
       targetSpokeId = firstSpoke?.id || null;
     }
 

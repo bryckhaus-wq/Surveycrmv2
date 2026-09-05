@@ -18,7 +18,7 @@ We wanted to follow up on the survey proposal prepared for you. You can review y
 Please let us know if you have any questions, require modifications, or are ready to proceed with scheduling your survey.
 
 Best regards,
-MJS Land Surveying Team`,
+Survey Team`,
   },
   ORDER_MANUAL_UPDATE: {
     subject: "Update regarding your survey project for {{propertyAddress}} (Order #{{orderId}})",
@@ -34,7 +34,7 @@ Order Details:
 Please feel free to reply directly to this email if you have any questions or require additional details.
 
 Best regards,
-MJS Land Surveying Team`,
+Survey Team`,
   },
 };
 
@@ -53,7 +53,7 @@ export async function GET(req: Request) {
     if (!template) {
       const defaultData = DEFAULT_TEMPLATES[type] || {
         subject: `Update regarding your survey for {{clientName}}`,
-        body: `Hello {{clientName}},\n\nHere is an update regarding your survey project.\n\nBest regards,\nMJS Land Surveying Team`,
+        body: `Hello {{clientName}},\n\nHere is an update regarding your survey project.\n\nBest regards,\nSurvey Team`,
       };
 
       template = await (prisma as any).emailTemplate.create({
