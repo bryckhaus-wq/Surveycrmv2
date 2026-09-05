@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import { Plus, Search, FileText, ArrowRight, CheckCircle2, Clock, XCircle, BarChart3 } from "lucide-react";
 
 interface QuoteItem {
@@ -23,6 +24,7 @@ interface QuoteItem {
 }
 
 export default function QuotesPage() {
+  const { data: session } = useSession();
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -101,13 +103,15 @@ export default function QuotesPage() {
           </p>
         </div>
         <div className="flex items-center space-x-2.5">
-          <Link
-            href="/quotes/reports"
-            className="inline-flex items-center justify-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-medium text-sm rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          >
-            <BarChart3 className="w-4 h-4 mr-1.5 text-blue-600 dark:text-blue-400" />
-            Conversion Reports
-          </Link>
+          {session?.user?.role === "ADMIN" && (
+            <Link
+              href="/quotes/reports"
+              className="inline-flex items-center justify-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-medium text-sm rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            >
+              <BarChart3 className="w-4 h-4 mr-1.5 text-blue-600 dark:text-blue-400" />
+              Conversion Reports
+            </Link>
+          )}
           <Link
             href="/quotes/new"
             className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none"

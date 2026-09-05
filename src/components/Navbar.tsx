@@ -78,8 +78,8 @@ export default function Navbar() {
     { name: "Quotes", href: "/quotes", icon: FileText, show: hasClientAccess(userRole) },
     { name: "Orders", href: "/orders", icon: ClipboardList, show: true },
     { name: "Clients", href: "/clients", icon: Users, show: hasClientAccess(userRole) },
-    { name: "Quote Reports", href: "/quotes/reports", icon: BarChart3, show: hasClientAccess(userRole) },
-    { name: "Order Reports", href: "/orders/reports", icon: ClipboardCheck, show: true },
+    { name: "Quote Reports", href: "/quotes/reports", icon: BarChart3, show: userRole === "ADMIN" },
+    { name: "Order Reports", href: "/orders/reports", icon: ClipboardCheck, show: userRole === "ADMIN" },
     { name: "Timesheets", href: "/timesheets", icon: Clock, show: true },
     { name: "Assets", href: "/assets", icon: Wrench, show: true },
     {

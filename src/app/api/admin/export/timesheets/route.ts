@@ -15,35 +15,30 @@ export async function GET() {
     const timesheets = await prisma.timesheet.findMany({
       include: {
         user: true,
-        order: {
-          select: {
-            orderNumber: true,
-            clientName: true,
-            address: true,
-            city: true,
-            state: true,
-          },
-        },
       },
       orderBy: {
-        date: "desc",
+        clockIn: "desc",
       },
     });
 
-    const flattened = timesheets.map((ts) => ({
-      "Timesheet ID": ts.id,
-      "Log Date": new Date(ts.date).toLocaleDateString(),
-      "Employee Name": ts.user.name,
-      "Employee Email": ts.user.email,
-      "Employee Role": ts.user.role,
-      "Order Number": ts.order.orderNumber,
-      "Client Name": ts.order.clientName,
-      "Job Address": `${ts.order.address}, ${ts.order.city}, ${ts.order.state}`,
-      "Hours": Number(ts.hours),
-      "Work Category": ts.workType,
-      "Notes & Log": ts.notes || "",
-      "Recorded At": new Date(ts.createdAt).toLocaleDateString(),
-    }));
+    const flattened = timesheets.map((ts) => {
+      const clockInDate = new Date(ts.clockIn);
+      const clockOutDate = ts.clockOut ? new Date(ts.clockOut) : null;
+      const hours = clockOutDate
+        ? ((clockOutDate.getTime() - clockInDate.getTime()) / (1000 * 60 * 60)).toFixed(2)
+        : "Active";
+
+      return {
+        "Timesheet ID": ts.id,
+        "Employee Name": ts.user.name,
+        "Employee Email": ts.user.email,
+        "Employee Role": ts.user.role,
+        "Clock In": clockInDate.toLocaleString(),
+        "Clock Out": clockOutDate ? clockOutDate.toLocaleString() : "Still Clocked In",
+        "Total Hours": hours,
+        "Notes": ts.notes || "",
+      };
+    });
 
     return NextResponse.json(flattened);
   } catch (error) {

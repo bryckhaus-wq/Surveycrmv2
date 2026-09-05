@@ -2,6 +2,8 @@
 
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import { useSpoke } from "@/context/SpokeContext";
 import {
   Calendar,
@@ -12,6 +14,7 @@ import {
   Users,
   MapPin,
   ClipboardList,
+  Loader2,
 } from "lucide-react";
 
 interface OrderGroupStats {
@@ -28,6 +31,8 @@ interface OrderGroupStats {
 }
 
 export default function OrderReportsPage() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const { spokeId } = useSpoke();
 
   // Default date window: past 30 days
@@ -50,7 +55,16 @@ export default function OrderReportsPage() {
   const [marketerTotal, setMarketerTotal] = useState<OrderGroupStats | null>(null);
   const [clientTotal, setClientTotal] = useState<OrderGroupStats | null>(null);
 
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/login");
+    } else if (status === "authenticated" && session?.user?.role !== "ADMIN") {
+      router.push("/");
+    }
+  }, [session, status, router]);
+
   const fetchReports = async () => {
+    if (status !== "authenticated" || session?.user?.role !== "ADMIN") return;
     try {
       setLoading(true);
       setError(null);
@@ -83,7 +97,16 @@ export default function OrderReportsPage() {
 
   useEffect(() => {
     fetchReports();
-  }, [startDate, endDate, spokeId]);
+  }, [startDate, endDate, spokeId, status, session]);
+
+  if (status === "loading" || (status === "authenticated" && session?.user?.role !== "ADMIN")) {
+    return (
+      <div className="p-12 text-center text-slate-500">
+        <Loader2 className="w-8 h-8 animate-spin mx-auto mb-3 text-blue-600" />
+        <p className="text-sm font-medium">Verifying authorization...</p>
+      </div>
+    );
+  }
 
   const formatAmt = (amt: number) => {
     return Math.round(amt || 0).toLocaleString();

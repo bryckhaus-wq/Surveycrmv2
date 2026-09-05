@@ -249,7 +249,6 @@ model Order {
   longitude         Float?
   documents         Document[]
   attachments       Attachment[]
-  timesheets        Timesheet[]
   emailLogs         EmailLog[]
   payments          Payment[]
   createdAt         DateTime    @default(now())
@@ -280,16 +279,12 @@ model Document {
 }
 
 model Timesheet {
-  id          String   @id @default(uuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  orderId     String
-  order       Order    @relation(fields: [orderId], references: [id])
-  date        DateTime
-  hours       Decimal  @db.Decimal(5,2)
-  workType    String   // Field, Drafting, Admin
-  notes       String?  @db.Text
-  createdAt   DateTime @default(now())
+  id        String    @id @default(cuid())
+  userId    String
+  clockIn   DateTime  @default(now())
+  clockOut  DateTime?
+  notes     String?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Asset {
