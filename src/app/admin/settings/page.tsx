@@ -22,6 +22,7 @@ import {
   Compass,
   Tag,
   Trash2,
+  Edit2,
 } from "lucide-react";
 
 interface LeadSourceData {
@@ -191,6 +192,54 @@ export default function CompanyProfileSettingsPage() {
       setError(err.message || "Failed to add county link.");
     } finally {
       setCreatingCountyLink(false);
+    }
+  };
+
+  const handleEditLink = async (link: CountyLinkData) => {
+    const newUrl = window.prompt("Update URL for " + link.county, link.url);
+    if (newUrl === null || newUrl.trim() === "" || newUrl.trim() === link.url) return;
+
+    try {
+      setError(null);
+      const res = await fetch(`/api/admin/county-links/${link.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: newUrl.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to update county link");
+      }
+
+      await fetchCountyLinks();
+      setSuccessMessage(`Updated URL for ${link.county} successfully.`);
+    } catch (err: any) {
+      setError(err.message || "Failed to update county link.");
+    }
+  };
+
+  const handleDeleteLink = async (link: CountyLinkData) => {
+    const confirmed = window.confirm(
+      `Are you sure you want to delete the county link for ${link.county} (${link.label})?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setError(null);
+      const res = await fetch(`/api/admin/county-links/${link.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete county link");
+      }
+
+      await fetchCountyLinks();
+      setSuccessMessage(`Deleted county link for ${link.county}.`);
+    } catch (err: any) {
+      setError(err.message || "Failed to delete county link.");
     }
   };
 
@@ -905,6 +954,7 @@ export default function CompanyProfileSettingsPage() {
                 <th className="px-4 py-2.5">State</th>
                 <th className="px-4 py-2.5">Portal Label</th>
                 <th className="px-4 py-2.5">URL / Link</th>
+                <th className="px-4 py-2.5 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800 font-medium">
@@ -924,17 +974,37 @@ export default function CompanyProfileSettingsPage() {
                       href={link.url}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center text-blue-600 dark:text-blue-400 hover:underline truncate max-w-xs"
+                      className="text-blue-500 underline inline-flex items-center hover:text-blue-600 truncate max-w-xs"
                     >
                       {link.url}
                       <ExternalLink className="w-3 h-3 ml-1 flex-shrink-0" />
                     </a>
                   </td>
+                  <td className="px-4 py-2.5 text-right space-x-2 whitespace-nowrap">
+                    <button
+                      type="button"
+                      onClick={() => handleEditLink(link)}
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
+                      title="Edit Link"
+                    >
+                      <Edit2 className="w-3 h-3 mr-1" />
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteLink(link)}
+                      className="inline-flex items-center px-2 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 hover:text-rose-800 dark:hover:text-rose-300 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 rounded transition-colors"
+                      title="Delete Link"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" />
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
               {countyLinks.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="px-4 py-4 text-center text-slate-400 italic">
+                  <td colSpan={5} className="px-4 py-4 text-center text-slate-400 italic">
                     No county portal links configured yet.
                   </td>
                 </tr>
