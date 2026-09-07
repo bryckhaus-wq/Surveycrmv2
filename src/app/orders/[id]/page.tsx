@@ -12,6 +12,7 @@ import {
   CheckCircle,
   FileCheck,
   MapPin,
+  Globe,
   User,
   AlertCircle,
   Save,
@@ -45,6 +46,14 @@ import {
   Plus,
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
+
+interface CountyLinkItem {
+  id: string;
+  county: string;
+  state: string | null;
+  label: string;
+  url: string;
+}
 
 interface AuditLogItem {
   id: string;
@@ -238,6 +247,7 @@ export default function OrderDetailPage() {
   const [auditLogs, setAuditLogs] = useState<AuditLogItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [countyLinks, setCountyLinks] = useState<CountyLinkItem[]>([]);
 
   // Payment Ledger State
   const [paymentAmount, setPaymentAmount] = useState("");
@@ -438,6 +448,27 @@ export default function OrderDetailPage() {
     }
   }, [formData.state, spokes]);
 
+  const fetchCountyLinks = async (countyName?: string | null) => {
+    if (!countyName) {
+      setCountyLinks([]);
+      return;
+    }
+    try {
+      const res = await fetch("/api/admin/county-links");
+      if (res.ok) {
+        const data: CountyLinkItem[] = await res.json();
+        if (Array.isArray(data)) {
+          const matches = data.filter(
+            (link) => link.county.trim().toLowerCase() === countyName.trim().toLowerCase()
+          );
+          setCountyLinks(matches);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch county links:", err);
+    }
+  };
+
   const fetchOrder = async () => {
     try {
       setLoading(true);
@@ -446,6 +477,9 @@ export default function OrderDetailPage() {
         const data: OrderDetail = await res.json();
         setOrder(data);
         populateFormState(data);
+        if (data.county) {
+          fetchCountyLinks(data.county);
+        }
       } else {
         setError("Failed to load order details.");
       }
@@ -1566,6 +1600,36 @@ export default function OrderDetailPage() {
                   />
                 </div>
               </div>
+
+              {/* County Portals & GIS Links */}
+              {formData.county && (
+                <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
+                  <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider flex items-center">
+                    <Globe className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                    County Research Portals ({formData.county})
+                  </span>
+                  {countyLinks.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {countyLinks.map((link) => (
+                        <a
+                          key={link.id}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-lg border border-blue-200 dark:border-blue-800 shadow-sm transition-colors"
+                        >
+                          <span>{link.label || "Portal"}</span>
+                          <ExternalLink className="w-3 h-3 ml-1 text-blue-500" />
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-slate-400 dark:text-slate-500 italic">
+                      No portal links configured for {formData.county} County.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

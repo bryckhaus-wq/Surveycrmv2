@@ -196,15 +196,19 @@ export default function CompanyProfileSettingsPage() {
   };
 
   const handleEditLink = async (link: CountyLinkData) => {
-    const newUrl = window.prompt("Update URL for " + link.county, link.url);
-    if (newUrl === null || newUrl.trim() === "" || newUrl.trim() === link.url) return;
+    const newLabel = window.prompt("Enter link name (e.g., GIS Map):", link.label || "Portal");
+    if (newLabel === null) return;
+    const newUrl = window.prompt(`Enter URL for ${newLabel}:`, link.url);
+    if (newUrl === null) return;
+
+    if (!newLabel.trim() || !newUrl.trim()) return;
 
     try {
       setError(null);
       const res = await fetch(`/api/admin/county-links/${link.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: newUrl.trim() }),
+        body: JSON.stringify({ label: newLabel.trim(), url: newUrl.trim() }),
       });
 
       if (!res.ok) {
@@ -213,7 +217,7 @@ export default function CompanyProfileSettingsPage() {
       }
 
       await fetchCountyLinks();
-      setSuccessMessage(`Updated URL for ${link.county} successfully.`);
+      setSuccessMessage(`Updated link for ${link.county} successfully.`);
     } catch (err: any) {
       setError(err.message || "Failed to update county link.");
     }
@@ -849,14 +853,14 @@ export default function CompanyProfileSettingsPage() {
 
           <div>
             <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
-              Portal Label *
+              Link Name / Label *
             </label>
             <input
               type="text"
               required
               value={newLabel}
               onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="e.g. Property Appraiser"
+              placeholder="e.g. GIS Map, Property Appraiser"
               className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
@@ -952,7 +956,7 @@ export default function CompanyProfileSettingsPage() {
               <tr>
                 <th className="px-4 py-2.5">County</th>
                 <th className="px-4 py-2.5">State</th>
-                <th className="px-4 py-2.5">Portal Label</th>
+                <th className="px-4 py-2.5">Link Name / Label</th>
                 <th className="px-4 py-2.5">URL / Link</th>
                 <th className="px-4 py-2.5 text-right">Actions</th>
               </tr>

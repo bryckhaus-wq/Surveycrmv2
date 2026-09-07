@@ -1208,7 +1208,7 @@ export default function QuoteDetailPage() {
                           rel="noopener noreferrer"
                           className="inline-flex items-center px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/80 text-blue-700 dark:text-blue-300 text-xs font-semibold rounded-lg border border-blue-200 dark:border-blue-800 shadow-sm transition-colors"
                         >
-                          <span>{link.label}</span>
+                          <span>{link.label || "Portal"}</span>
                           <ExternalLink className="w-3 h-3 ml-1 text-blue-500" />
                         </a>
                       ))}

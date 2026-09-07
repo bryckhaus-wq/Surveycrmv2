@@ -167,7 +167,7 @@ model CountyLink {
   id         String   @id @default(cuid())
   county     String
   state      String?
-  label      String
+  label      String   @default("Portal")
   url        String
   createdAt  DateTime @default(now())
 }
