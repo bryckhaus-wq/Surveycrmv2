@@ -23,6 +23,7 @@ import {
   Tag,
   Trash2,
   Edit2,
+  X,
 } from "lucide-react";
 
 interface LeadSourceData {
@@ -97,6 +98,8 @@ export default function CompanyProfileSettingsPage() {
   const [importingCountyCsv, setImportingCountyCsv] = useState(false);
   const [countyCsvMessage, setCountyCsvMessage] = useState<string | null>(null);
   const [countyCsvError, setCountyCsvError] = useState<string | null>(null);
+  const [editingLink, setEditingLink] = useState<CountyLinkData | null>(null);
+  const [savingEditLink, setSavingEditLink] = useState(false);
 
   useEffect(() => {
     fetchSettings();
@@ -195,20 +198,27 @@ export default function CompanyProfileSettingsPage() {
     }
   };
 
-  const handleEditLink = async (link: CountyLinkData) => {
-    const newLabel = window.prompt("Enter link name (e.g., GIS Map):", link.label || "Portal");
-    if (newLabel === null) return;
-    const newUrl = window.prompt(`Enter URL for ${newLabel}:`, link.url);
-    if (newUrl === null) return;
+  const handleSaveEditLink = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingLink) return;
 
-    if (!newLabel.trim() || !newUrl.trim()) return;
+    if (!editingLink.county?.trim() || !editingLink.label?.trim() || !editingLink.url?.trim()) {
+      setError("Please fill out County, Label, and URL.");
+      return;
+    }
 
     try {
+      setSavingEditLink(true);
       setError(null);
-      const res = await fetch(`/api/admin/county-links/${link.id}`, {
+      const res = await fetch(`/api/admin/county-links/${editingLink.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label: newLabel.trim(), url: newUrl.trim() }),
+        body: JSON.stringify({
+          state: editingLink.state ? editingLink.state.trim().toUpperCase() : null,
+          county: editingLink.county.trim(),
+          label: editingLink.label.trim(),
+          url: editingLink.url.trim(),
+        }),
       });
 
       if (!res.ok) {
@@ -216,10 +226,13 @@ export default function CompanyProfileSettingsPage() {
         throw new Error(data.error || "Failed to update county link");
       }
 
+      setEditingLink(null);
       await fetchCountyLinks();
-      setSuccessMessage(`Updated link for ${link.county} successfully.`);
+      setSuccessMessage("County portal link updated successfully.");
     } catch (err: any) {
       setError(err.message || "Failed to update county link.");
+    } finally {
+      setSavingEditLink(false);
     }
   };
 
@@ -987,7 +1000,7 @@ export default function CompanyProfileSettingsPage() {
                   <td className="px-4 py-2.5 text-right space-x-2 whitespace-nowrap">
                     <button
                       type="button"
-                      onClick={() => handleEditLink(link)}
+                      onClick={() => setEditingLink(link)}
                       className="inline-flex items-center px-2 py-1 text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-400 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition-colors"
                       title="Edit Link"
                     >
@@ -1016,6 +1029,120 @@ export default function CompanyProfileSettingsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* Edit Modal / Inline Edit Card */}
+        {editingLink && (
+          <div className="bg-slate-50 dark:bg-slate-800/80 p-5 rounded-xl border-2 border-blue-500/50 dark:border-blue-400/50 space-y-4 shadow-sm animate-in fade-in duration-150">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-2">
+              <div className="flex items-center space-x-2">
+                <Edit2 className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                  Edit County Link: {editingLink.county}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setEditingLink(null)}
+                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditLink} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                    State
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={2}
+                    value={editingLink.state || ""}
+                    onChange={(e) =>
+                      setEditingLink({ ...editingLink, state: e.target.value.toUpperCase() })
+                    }
+                    placeholder="FL"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs uppercase text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                    County *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingLink.county}
+                    onChange={(e) =>
+                      setEditingLink({ ...editingLink, county: e.target.value })
+                    }
+                    placeholder="Orange"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                    Label *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={editingLink.label}
+                    onChange={(e) =>
+                      setEditingLink({ ...editingLink, label: e.target.value })
+                    }
+                    placeholder="e.g. GIS Map"
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-slate-600 dark:text-slate-400 mb-1">
+                    URL *
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={editingLink.url}
+                    onChange={(e) =>
+                      setEditingLink({ ...editingLink, url: e.target.value })
+                    }
+                    placeholder="https://..."
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-2">
+                <button
+                  type="button"
+                  onClick={() => setEditingLink(null)}
+                  disabled={savingEditLink}
+                  className="px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-lg transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEditLink || !editingLink.county || !editingLink.label || !editingLink.url}
+                  className="inline-flex items-center px-4 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors disabled:opacity-50 cursor-pointer"
+                >
+                  {savingEditLink ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      Saving Changes...
+                    </>
+                  ) : (
+                    "Save Changes"
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
