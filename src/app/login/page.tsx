@@ -1,18 +1,26 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { signIn } from "next-auth/react";
+import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Lock, Mail, AlertCircle, Loader2 } from "lucide-react";
 
 export default function LoginPage() {
   const router = useRouter();
+  const { data: session, status } = useSession();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [companyName, setCompanyName] = useState("Survey CRM");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+
+  // If already authenticated, redirect to dashboard immediately
+  useEffect(() => {
+    if (status === "authenticated") {
+      window.location.href = "/";
+    }
+  }, [status]);
 
   useEffect(() => {
     fetch("/api/admin/settings")
@@ -35,7 +43,7 @@ export default function LoginPage() {
 
     try {
       const res = await signIn("credentials", {
-        email,
+        email: email.trim().toLowerCase(),
         password,
         redirect: false,
         callbackUrl: "/",
@@ -43,16 +51,31 @@ export default function LoginPage() {
 
       if (res?.error) {
         setError("Invalid email or password. Please try again.");
+        setLoading(false);
       } else if (res?.ok) {
-        router.push(res.url || "/");
-        router.refresh();
+        // Hard navigate so Next.js server components and session cookies are fully loaded fresh
+        window.location.href = res.url || "/";
+      } else {
+        setLoading(false);
       }
     } catch (err) {
       setError("An unexpected error occurred. Please try again later.");
-    } finally {
       setLoading(false);
     }
   };
+
+  if (status === "loading" || status === "authenticated") {
+    return (
+      <div className="min-h-[80vh] flex items-center justify-center py-12 px-4">
+        <div className="text-center space-y-3">
+          <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-600 dark:text-blue-400" />
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+            {status === "authenticated" ? "Authenticated. Taking you to dashboard..." : "Loading session..."}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
