@@ -129,6 +129,11 @@ model Quote {
   state            String
   zip              String
   county           String?
+  taxParcelId      String?
+  acres            Float?
+  primaryOwner     String?
+  propertyClass    String?
+  satelliteImagePath String?
   latitude         Float?
   longitude        Float?
   surveyTypeId     String
@@ -214,6 +219,10 @@ model Order {
   lot               String?
   block             String?
   subdivision       String?
+  acres             Float?
+  primaryOwner      String?
+  propertyClass     String?
+  satelliteImagePath String?
 
   // Job Specifics
   orderedBy         String?

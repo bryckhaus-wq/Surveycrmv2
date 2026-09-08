@@ -33,6 +33,11 @@ import {
   Tag,
   Briefcase,
   Hash,
+  Satellite,
+  Maximize2,
+  RefreshCw,
+  Sparkles,
+  Layers,
 } from "lucide-react";
 import FileUpload from "@/components/FileUpload";
 import { generateQuotePDF, buildQuotePDFDoc, SystemSettingsInfo } from "@/lib/pdfGenerator";
@@ -108,6 +113,11 @@ interface QuoteDetail {
   state: string;
   zip: string;
   county?: string | null;
+  taxParcelId?: string | null;
+  acres?: number | null;
+  primaryOwner?: string | null;
+  propertyClass?: string | null;
+  satelliteImagePath?: string | null;
   latitude: number | null;
   longitude: number | null;
   price: string | number;
@@ -194,6 +204,49 @@ export default function QuoteDetailPage() {
   const [emailMessage, setEmailMessage] = useState("");
   const [emailSendingStatus, setEmailSendingStatus] = useState<string | null>(null);
   const [emailModalError, setEmailModalError] = useState<string | null>(null);
+
+  // GIS Enrichment State
+  const [isEnrichingGIS, setIsEnrichingGIS] = useState(false);
+  const [gisEnrichMessage, setGisEnrichMessage] = useState<{ text: string; isError?: boolean } | null>(null);
+  const [isAerialModalOpen, setIsAerialModalOpen] = useState(false);
+
+  const handleEnrichQuoteGIS = async () => {
+    if (!quote) return;
+    setIsEnrichingGIS(true);
+    setGisEnrichMessage(null);
+    try {
+      const res = await fetch(`/api/quotes/${quote.id}/enrich-property`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          address: quote.address,
+          city: quote.city,
+          state: quote.state,
+          zip: quote.zip,
+          county: quote.county,
+        }),
+      });
+
+      const result = await res.json();
+      if (!res.ok) {
+        throw new Error(result.error || "Failed to fetch GIS parcel and aerial imagery");
+      }
+
+      if (result.data) {
+        setGisEnrichMessage({
+          text: `Enrichment complete! Parcel: ${result.data.taxParcelId || "Detected"}, Acres: ${result.data.acres ?? "N/A"}`,
+        });
+        await fetchQuote();
+      }
+    } catch (err: any) {
+      setGisEnrichMessage({
+        text: err.message || "Failed to enrich property GIS data",
+        isError: true,
+      });
+    } finally {
+      setIsEnrichingGIS(false);
+    }
+  };
 
   useEffect(() => {
     if (id) {
@@ -1137,10 +1190,57 @@ export default function QuoteDetailPage() {
 
           {/* Property Location */}
           <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 space-y-4">
-            <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center border-b border-slate-100 dark:border-slate-800 pb-3">
-              <MapPin className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
-              Property Location
-            </h2>
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100 flex items-center">
+                <MapPin className="w-4 h-4 mr-2 text-blue-600 dark:text-blue-400" />
+                Property Location
+              </h2>
+              <button
+                type="button"
+                onClick={handleEnrichQuoteGIS}
+                disabled={isEnrichingGIS || !quote.address}
+                className="inline-flex items-center px-2.5 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white text-xs font-medium rounded-lg shadow-sm transition-all cursor-pointer"
+                title="Geocode address, query public parcel records, and capture satellite aerial imagery"
+              >
+                {isEnrichingGIS ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                    Fetching GIS & Aerial...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 mr-1.5 text-amber-300" />
+                    Fetch Parcel & Aerial Image
+                  </>
+                )}
+              </button>
+            </div>
+
+            {gisEnrichMessage && (
+              <div
+                className={`p-3 rounded-lg text-xs font-medium flex items-center justify-between ${
+                  gisEnrichMessage.isError
+                    ? "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-800"
+                    : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                }`}
+              >
+                <div className="flex items-center space-x-2">
+                  {gisEnrichMessage.isError ? (
+                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                  ) : (
+                    <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                  )}
+                  <span>{gisEnrichMessage.text}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setGisEnrichMessage(null)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-2"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
             <div className="space-y-3 text-sm">
               <div>
                 <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
@@ -1188,6 +1288,94 @@ export default function QuoteDetailPage() {
                       Open in Maps <ArrowUpRight className="w-3 h-3 ml-0.5" />
                     </a>
                   )}
+                </div>
+              )}
+
+              {/* GIS Parcel Attributes & Property Info */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center">
+                  <Layers className="w-3.5 h-3.5 mr-1.5 text-blue-500" />
+                  Public Parcel & Property Details
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 dark:bg-slate-800/60 p-3 rounded-lg border border-slate-200 dark:border-slate-700/80">
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                      Tax Parcel ID / SBL
+                    </span>
+                    <span className="text-xs font-mono font-medium text-slate-800 dark:text-slate-200">
+                      {quote.taxParcelId || <span className="text-slate-400 dark:text-slate-600 italic">Unassigned</span>}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                      Deed / GIS Acres
+                    </span>
+                    <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
+                      {quote.acres !== null && quote.acres !== undefined ? `${quote.acres} acres` : <span className="text-slate-400 dark:text-slate-600 italic">N/A</span>}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                      Property Class
+                    </span>
+                    <span className="text-xs font-medium text-slate-800 dark:text-slate-200">
+                      {quote.propertyClass || <span className="text-slate-400 dark:text-slate-600 italic">N/A</span>}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[11px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                      Primary Owner
+                    </span>
+                    <span className="text-xs font-medium text-slate-800 dark:text-slate-200 truncate block" title={quote.primaryOwner || ""}>
+                      {quote.primaryOwner || <span className="text-slate-400 dark:text-slate-600 italic">Public record</span>}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Satellite Aerial Imagery Card */}
+              {quote.satelliteImagePath && (
+                <div className="p-3 bg-slate-900 text-white rounded-lg border border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center">
+                      <Satellite className="w-3.5 h-3.5 mr-1.5 text-cyan-400" />
+                      Satellite Aerial Snapshot (Esri)
+                    </span>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsAerialModalOpen(true)}
+                        className="text-[11px] text-cyan-300 hover:text-cyan-100 flex items-center font-medium cursor-pointer"
+                      >
+                        <Maximize2 className="w-3 h-3 mr-1" />
+                        Full Size
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleEnrichQuoteGIS}
+                        disabled={isEnrichingGIS}
+                        className="text-[11px] text-slate-300 hover:text-white flex items-center font-medium cursor-pointer disabled:opacity-50"
+                        title="Re-fetch satellite imagery"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${isEnrichingGIS ? "animate-spin" : ""}`} />
+                      </button>
+                    </div>
+                  </div>
+                  <div
+                    className="relative w-full h-44 rounded-md overflow-hidden bg-slate-950 border border-slate-800 cursor-pointer group"
+                    onClick={() => setIsAerialModalOpen(true)}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={quote.satelliteImagePath}
+                      alt="Property Satellite View"
+                      className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-medium text-white">
+                      <Maximize2 className="w-4 h-4 mr-1.5" />
+                      Click to view full image
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -1669,6 +1857,58 @@ export default function QuoteDetailPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Full-Size Aerial Satellite Modal */}
+      {isAerialModalOpen && quote.satelliteImagePath && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md"
+          onClick={() => setIsAerialModalOpen(false)}
+        >
+          <div
+            className="relative max-w-4xl w-full bg-slate-900 rounded-2xl overflow-hidden shadow-2xl border border-slate-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-4 border-b border-slate-800 bg-slate-900/90">
+              <div className="flex items-center space-x-2 text-white font-semibold text-sm">
+                <Satellite className="w-4 h-4 text-cyan-400" />
+                <span>Aerial Satellite Imagery - {quote.address}</span>
+              </div>
+              <div className="flex items-center space-x-3">
+                <a
+                  href={quote.satelliteImagePath}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  download={`satellite-quote-${quote.quoteNumber}.png`}
+                  className="px-3 py-1 bg-cyan-600 hover:bg-cyan-700 text-white text-xs font-semibold rounded-md transition-colors"
+                >
+                  Download PNG
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setIsAerialModalOpen(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-md"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
+            <div className="p-2 bg-black flex items-center justify-center max-h-[75vh] overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={quote.satelliteImagePath}
+                alt="Aerial Satellite High Resolution"
+                className="max-h-[72vh] w-auto object-contain rounded"
+              />
+            </div>
+            <div className="p-3 bg-slate-950 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
+              <span>Source: Esri World Imagery (High-Resolution Static Map Service)</span>
+              <span>
+                {quote.taxParcelId ? `Parcel ID: ${quote.taxParcelId}` : ""} {quote.acres ? `• Acres: ${quote.acres}` : ""}
+              </span>
+            </div>
           </div>
         </div>
       )}
