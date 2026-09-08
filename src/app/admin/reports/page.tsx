@@ -21,6 +21,9 @@ import {
   Activity,
   Calendar,
   CheckCircle2,
+  CalendarRange,
+  X,
+  Filter,
 } from "lucide-react";
 
 interface ARAgingOrder {
@@ -91,6 +94,12 @@ export default function AdminReportsPage() {
   // Tab State: Accounts Receivable, On Hold, Crew Capacity, Labor Logs, VIP Clients
   const [activeTab, setActiveTab] = useState<string>("AR");
 
+  // Date Range Filter State
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
+  const [appliedStartDate, setAppliedStartDate] = useState<string>("");
+  const [appliedEndDate, setAppliedEndDate] = useState<string>("");
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<ReportsResponse>({
@@ -110,12 +119,17 @@ export default function AdminReportsPage() {
     }
   }, [session, status, router]);
 
-  const fetchReportsData = async () => {
+  const fetchReportsData = async (start = appliedStartDate, end = appliedEndDate) => {
     if (status !== "authenticated" || session?.user?.role !== "ADMIN") return;
     try {
       setLoading(true);
       setError(null);
-      const res = await fetch("/api/admin/reports");
+      const params = new URLSearchParams();
+      if (start) params.set("startDate", start);
+      if (end) params.set("endDate", end);
+
+      const url = `/api/admin/reports${params.toString() ? `?${params.toString()}` : ""}`;
+      const res = await fetch(url);
       if (!res.ok) {
         if (res.status === 403) {
           router.push("/dashboard");
@@ -139,9 +153,52 @@ export default function AdminReportsPage() {
     }
   };
 
+  const handleApplyDateRange = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setAppliedStartDate(startDate);
+    setAppliedEndDate(endDate);
+    fetchReportsData(startDate, endDate);
+  };
+
+  const handleClearDateRange = () => {
+    setStartDate("");
+    setEndDate("");
+    setAppliedStartDate("");
+    setAppliedEndDate("");
+    fetchReportsData("", "");
+  };
+
+  const setPreset = (preset: "today" | "7d" | "30d" | "month" | "year") => {
+    const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
+    let startStr = "";
+
+    if (preset === "today") {
+      startStr = todayStr;
+    } else if (preset === "7d") {
+      const d = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+      startStr = d.toISOString().split("T")[0];
+    } else if (preset === "30d") {
+      const d = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      startStr = d.toISOString().split("T")[0];
+    } else if (preset === "month") {
+      const d = new Date(now.getFullYear(), now.getMonth(), 1);
+      startStr = d.toISOString().split("T")[0];
+    } else if (preset === "year") {
+      const d = new Date(now.getFullYear(), 0, 1);
+      startStr = d.toISOString().split("T")[0];
+    }
+
+    setStartDate(startStr);
+    setEndDate(todayStr);
+    setAppliedStartDate(startStr);
+    setAppliedEndDate(todayStr);
+    fetchReportsData(startStr, todayStr);
+  };
+
   useEffect(() => {
     if (status === "authenticated" && session?.user?.role === "ADMIN") {
-      fetchReportsData();
+      fetchReportsData("", "");
     }
   }, [status, session]);
 
@@ -271,7 +328,7 @@ export default function AdminReportsPage() {
 
         <div className="flex items-center space-x-2">
           <button
-            onClick={fetchReportsData}
+            onClick={() => fetchReportsData()}
             disabled={loading}
             className="inline-flex items-center space-x-1.5 px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-xl shadow-sm transition-colors disabled:opacity-50"
           >
@@ -279,6 +336,113 @@ export default function AdminReportsPage() {
             <span>{loading ? "Refreshing..." : "Refresh Data"}</span>
           </button>
         </div>
+      </div>
+
+      {/* Date Range Filter Bar */}
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-sm space-y-3">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+          <div className="flex items-center space-x-2">
+            <CalendarRange className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+            <span className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
+              Filter by Date Range
+            </span>
+            {(appliedStartDate || appliedEndDate) && (
+              <span className="text-[11px] font-mono px-2 py-0.5 rounded-md bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                Active: {appliedStartDate || "Start"} → {appliedEndDate || "Present"}
+              </span>
+            )}
+          </div>
+
+          {/* Quick Presets */}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-slate-500 dark:text-slate-400 mr-1 font-medium">Presets:</span>
+            <button
+              type="button"
+              onClick={() => setPreset("today")}
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+            >
+              Today
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreset("7d")}
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+            >
+              Last 7 Days
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreset("30d")}
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+            >
+              Last 30 Days
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreset("month")}
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+            >
+              This Month
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreset("year")}
+              className="px-2.5 py-1 text-xs font-medium rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 transition-colors"
+            >
+              This Year
+            </button>
+          </div>
+        </div>
+
+        {/* Date Inputs Form */}
+        <form onSubmit={handleApplyDateRange} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 pt-1">
+          <div className="flex items-center space-x-2 flex-1">
+            <div className="relative flex-1">
+              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">
+                From Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div className="relative flex-1">
+              <label className="block text-[10px] font-semibold text-slate-500 dark:text-slate-400 mb-0.5">
+                To Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full px-3 py-1.5 bg-slate-50 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 rounded-lg text-xs text-slate-900 dark:text-slate-100 focus:bg-white dark:focus:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="flex items-center space-x-2 self-end sm:self-auto sm:mt-4">
+            <button
+              type="submit"
+              disabled={loading}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50"
+            >
+              <Filter className="w-3.5 h-3.5 mr-1.5" />
+              Apply Range
+            </button>
+            {(appliedStartDate || appliedEndDate || startDate || endDate) && (
+              <button
+                type="button"
+                onClick={handleClearDateRange}
+                className="inline-flex items-center px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-medium text-xs rounded-lg transition-colors"
+                title="Clear date range"
+              >
+                <X className="w-3.5 h-3.5 mr-1" />
+                Clear
+              </button>
+            )}
+          </div>
+        </form>
       </div>
 
       {/* Top KPI Summary Cards */}
@@ -323,7 +487,7 @@ export default function AdminReportsPage() {
         <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-1.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-purple-600 dark:text-purple-400 uppercase tracking-wider">
-              Labor Hours (30 Days)
+              {appliedStartDate || appliedEndDate ? "Labor Hours (Range)" : "Labor Hours (30 Days)"}
             </span>
             <div className="p-2 bg-purple-100 dark:bg-purple-950/60 rounded-xl text-purple-600 dark:text-purple-400">
               <Clock className="w-4 h-4" />
@@ -729,7 +893,7 @@ export default function AdminReportsPage() {
               <div>
                 <h2 className="text-base font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-2">
                   <Clock className="w-5 h-5 text-purple-600 dark:text-purple-400" />
-                  <span>Staff Labor Logs (Past 30 Days)</span>
+                  <span>Staff Labor Logs {appliedStartDate || appliedEndDate ? `(${appliedStartDate || "Start"} to ${appliedEndDate || "Present"})` : "(Past 30 Days)"}</span>
                 </h2>
                 <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                   Shift counts and accumulated clocked hours grouped by staff member.
@@ -747,7 +911,7 @@ export default function AdminReportsPage() {
               </div>
             ) : groupedLabor.length === 0 ? (
               <div className="p-12 text-center text-xs text-slate-400 italic">
-                No timesheet records logged in the last 30 days.
+                No timesheet records logged for the selected period.
               </div>
             ) : (
               <div className="overflow-x-auto">

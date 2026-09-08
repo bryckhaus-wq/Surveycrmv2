@@ -7,7 +7,7 @@ import { OrderStatus } from "@prisma/client";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
   if (!session) {
     return new NextResponse("Unauthorized", { status: 401 });
@@ -18,7 +18,30 @@ export async function GET() {
   }
 
   try {
+    const { searchParams } = new URL(req.url);
+    const startDateParam = searchParams.get("startDate");
+    const endDateParam = searchParams.get("endDate");
+
+    let dateFilter: { gte?: Date; lte?: Date } | undefined = undefined;
+    if (startDateParam || endDateParam) {
+      dateFilter = {};
+      if (startDateParam) {
+        dateFilter.gte = new Date(startDateParam);
+      }
+      if (endDateParam) {
+        const end = new Date(endDateParam);
+        end.setHours(23, 59, 59, 999);
+        dateFilter.lte = end;
+      }
+    }
+
     const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const timesheetDateFilter = dateFilter
+      ? {
+          ...(dateFilter.gte ? { gte: dateFilter.gte } : {}),
+          ...(dateFilter.lte ? { lte: dateFilter.lte } : {}),
+        }
+      : { gte: thirtyDaysAgo };
 
     const holdStatuses: OrderStatus[] = [
       OrderStatus.HOLD_REVIEW,
@@ -33,7 +56,7 @@ export async function GET() {
       activeOrdersWithPayments,
       holdOrders,
       spokesWithOrders,
-      timesheetsPast30Days,
+      timesheets,
       topClients,
     ] = await Promise.all([
       // 1. A/R Aging: Order records (including client and payments) where status is not 'COMPLETED' or 'CANCELLED'
@@ -42,6 +65,7 @@ export async function GET() {
           status: {
             notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
           },
+          ...(dateFilter ? { createdAt: dateFilter } : {}),
         },
         include: {
           client: {
@@ -73,6 +97,7 @@ export async function GET() {
           status: {
             in: holdStatuses,
           },
+          ...(dateFilter ? { createdAt: dateFilter } : {}),
         },
         include: {
           client: {
@@ -107,6 +132,7 @@ export async function GET() {
                   status: {
                     notIn: [OrderStatus.COMPLETED, OrderStatus.CANCELLED],
                   },
+                  ...(dateFilter ? { createdAt: dateFilter } : {}),
                 },
               },
             },
@@ -117,12 +143,10 @@ export async function GET() {
         },
       }),
 
-      // 4. Labor (Past 30 Days): Timesheet records from the last 30 days including user relation
+      // 4. Labor (Custom date range or Past 30 Days): Timesheet records
       prisma.timesheet.findMany({
         where: {
-          clockIn: {
-            gte: thirtyDaysAgo,
-          },
+          clockIn: timesheetDateFilter,
         },
         include: {
           user: {
@@ -139,7 +163,7 @@ export async function GET() {
         },
       }),
 
-      // 5. VIP Clients: Client records including count of orders, ordered by orders count descending (top 10)
+      // 5. VIP Clients: Client records including count of orders
       prisma.client.findMany({
         take: 10,
         select: {
@@ -150,7 +174,9 @@ export async function GET() {
           clientType: true,
           _count: {
             select: {
-              orders: true,
+              orders: {
+                where: dateFilter ? { createdAt: dateFilter } : undefined,
+              },
             },
           },
         },
@@ -211,8 +237,8 @@ export async function GET() {
           : 0,
     }));
 
-    // Process Labor logs (past 30 days)
-    const laborLogs = timesheetsPast30Days.map((ts) => ({
+    // Process Labor logs
+    const laborLogs = timesheets.map((ts) => ({
       id: ts.id,
       userId: ts.userId,
       userName: ts.user?.name || "Unknown User",

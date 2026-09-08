@@ -264,19 +264,12 @@ export default function Navbar() {
                   </select>
                 </div>
 
-                {/* Logged in User Name & Role */}
+                {/* Logged in User Name */}
                 <div className="flex items-center space-x-2 bg-slate-800/90 dark:bg-slate-900 border border-slate-700 rounded-lg px-2.5 py-1 text-xs shadow-sm">
                   <UserIcon className="w-3.5 h-3.5 text-blue-400" />
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-1.5">
-                    <span className="font-medium text-slate-200 truncate max-w-[120px] sm:max-w-[160px]">
-                      {session.user.name || session.user.email}
-                    </span>
-                    {session.user.role && (
-                      <span className="text-[10px] uppercase font-bold text-blue-400 bg-blue-950/60 px-1.5 py-0.5 rounded border border-blue-800/60 hidden md:inline-block">
-                        {session.user.role.replace("_", " ")}
-                      </span>
-                    )}
-                  </div>
+                  <span className="font-medium text-slate-200 truncate max-w-[140px] sm:max-w-[180px]">
+                    {session.user.name || session.user.email}
+                  </span>
                 </div>
 
                 {/* Sign Out Button */}
