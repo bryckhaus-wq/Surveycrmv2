@@ -634,6 +634,13 @@ export default function AdminPage() {
 
         <div className="flex flex-wrap items-center gap-2">
           <Link
+            href="/admin/reports"
+            className="inline-flex items-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-xl shadow-sm transition-colors"
+          >
+            <ShieldAlert className="w-4 h-4 mr-1.5 text-blue-600 dark:text-blue-400" />
+            Unified Reports
+          </Link>
+          <Link
             href="/admin/settings"
             className="inline-flex items-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-xl shadow-sm transition-colors"
           >
