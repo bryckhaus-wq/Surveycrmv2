@@ -1,15 +1,24 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import Link from "next/link";
+import { useRole } from "@/context/RoleContext";
+import { Role } from "@prisma/client";
 import {
   Users,
   Search,
   Plus,
   ArrowRight,
+  ArrowLeft,
   Mail,
   Phone,
   AlertTriangle,
+  UploadCloud,
+  CheckCircle2,
+  AlertCircle,
+  Loader2,
+  Lock,
+  Building,
 } from "lucide-react";
 
 interface ClientItem {
@@ -28,15 +37,22 @@ interface ClientItem {
   };
 }
 
-export default function ClientsPage() {
+export default function AdminClientsPage() {
+  const { role } = useRole();
   const [clients, setClients] = useState<ClientItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [typeFilter, setTypeFilter] = useState("ALL");
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    fetchClients();
-  }, []);
+    if (role === Role.ADMIN) {
+      fetchClients();
+    }
+  }, [role]);
 
   const fetchClients = async () => {
     try {
@@ -52,6 +68,67 @@ export default function ClientsPage() {
       setLoading(false);
     }
   };
+
+  const handleFileUpload = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!uploadFile) {
+      setUploadMessage({ type: "error", text: "Please select a CSV file first." });
+      return;
+    }
+
+    try {
+      setUploading(true);
+      setUploadMessage(null);
+
+      const formData = new FormData();
+      formData.append("file", uploadFile);
+
+      const res = await fetch("/api/admin/clients/import", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to import legacy clients.");
+      }
+
+      setUploadMessage({
+        type: "success",
+        text: data.message || `Successfully imported ${data.count} client(s).`,
+      });
+
+      setUploadFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      await fetchClients();
+    } catch (err: any) {
+      console.error("Bulk import failed:", err);
+      setUploadMessage({
+        type: "error",
+        text: err.message || "An unexpected error occurred during import.",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  if (role !== Role.ADMIN) {
+    return (
+      <div className="max-w-xl mx-auto mt-12 bg-white dark:bg-slate-900 p-8 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-800 text-center space-y-4">
+        <div className="w-14 h-14 bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-full flex items-center justify-center mx-auto">
+          <Lock className="w-7 h-7" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Access Restricted</h2>
+        <p className="text-sm text-slate-600 dark:text-slate-400">
+          The Admin Client Management panel is restricted to the <span className="font-semibold text-slate-900 dark:text-slate-100">ADMIN</span> role.
+        </p>
+      </div>
+    );
+  }
 
   const filteredClients = clients.filter((client) => {
     const matchesSearch =
@@ -85,14 +162,23 @@ export default function ClientsPage() {
     <div className="space-y-6">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center space-x-2">
-            <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
-            <span>Client Directory & Billing Protocols</span>
-          </h1>
-          <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
-            Maintain customer accounts, custom invoicing rules, and standing surveyor instructions.
-          </p>
+        <div className="flex items-center space-x-3">
+          <Link
+            href="/admin"
+            className="inline-flex items-center text-sm font-medium text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 shadow-sm transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1.5" />
+            Back to Admin
+          </Link>
+          <div>
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight flex items-center space-x-2">
+              <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+              <span>Admin Client Management & Legacy Import</span>
+            </h1>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mt-0.5">
+              Manage client records, import legacy accounts via CSV, and review billing protocols.
+            </p>
+          </div>
         </div>
 
         <Link
@@ -102,6 +188,70 @@ export default function ClientsPage() {
           <Plus className="w-4 h-4 mr-1.5" />
           Add New Client
         </Link>
+      </div>
+
+      {/* Bulk Import Legacy Clients (CSV) */}
+      <div className="bg-white dark:bg-slate-900 p-5 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <UploadCloud className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+            <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">
+              Bulk Import Legacy Clients (CSV)
+            </h2>
+          </div>
+        </div>
+        <p className="text-xs text-slate-600 dark:text-slate-400">
+          Upload a legacy client CSV file to migrate client records into the system. Duplicates with matching emails or names will be skipped automatically.
+        </p>
+
+        {uploadMessage && (
+          <div
+            className={`p-3 rounded-lg text-xs font-medium flex items-center space-x-2 ${
+              uploadMessage.type === "success"
+                ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+                : "bg-rose-50 dark:bg-rose-950/40 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800"
+            }`}
+          >
+            {uploadMessage.type === "success" ? (
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            )}
+            <span>{uploadMessage.text}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleFileUpload} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            onChange={(e) => {
+              const file = e.target.files?.[0] || null;
+              setUploadFile(file);
+              setUploadMessage(null);
+            }}
+            className="block w-full sm:w-auto text-xs text-slate-500 dark:text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-100 dark:file:bg-slate-800 file:text-slate-700 dark:file:text-slate-200 hover:file:bg-slate-200 dark:hover:file:bg-slate-700 cursor-pointer border border-slate-200 dark:border-slate-700 rounded-lg p-1 bg-slate-50 dark:bg-slate-800/50"
+          />
+
+          <button
+            type="submit"
+            disabled={uploading || !uploadFile}
+            className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-medium text-xs rounded-lg shadow-sm transition-colors focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {uploading ? (
+              <>
+                <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                Uploading & Processing...
+              </>
+            ) : (
+              <>
+                <UploadCloud className="w-3.5 h-3.5 mr-1.5" />
+                Upload CSV
+              </>
+            )}
+          </button>
+        </form>
       </div>
 
       {/* Filter and Search Bar */}
@@ -150,15 +300,6 @@ export default function ClientsPage() {
                 ? "Try adjusting your search criteria."
                 : "Add your first client to start streamlined quoting and billing."}
             </p>
-            {!searchTerm && typeFilter === "ALL" && (
-              <Link
-                href="/clients/new"
-                className="mt-4 inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4 mr-1.5" />
-                Add Client
-              </Link>
-            )}
           </div>
         ) : (
           <div className="overflow-x-auto">

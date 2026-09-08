@@ -25,6 +25,8 @@ import {
   Search,
   BarChart3,
   ClipboardCheck,
+  ChevronDown,
+  Briefcase,
 } from "lucide-react";
 
 export default function Navbar() {
@@ -73,15 +75,11 @@ export default function Navbar() {
 
   const navLinks = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard, show: true },
-    { name: "Schedule", href: "/schedule", icon: Calendar, show: true },
-    { name: "Routing Map", href: "/map", icon: MapPin, show: true },
     { name: "Quotes", href: "/quotes", icon: FileText, show: hasClientAccess(userRole) },
     { name: "Orders", href: "/orders", icon: ClipboardList, show: true },
     { name: "Clients", href: "/clients", icon: Users, show: hasClientAccess(userRole) },
     { name: "Quote Reports", href: "/quotes/reports", icon: BarChart3, show: userRole === "ADMIN" },
     { name: "Order Reports", href: "/orders/reports", icon: ClipboardCheck, show: userRole === "ADMIN" },
-    { name: "Timesheets", href: "/timesheets", icon: Clock, show: true },
-    { name: "Assets", href: "/assets", icon: Wrench, show: true },
     {
       name: "Admin",
       href: "/admin",
@@ -89,6 +87,17 @@ export default function Navbar() {
       show: hasAdminAccess(userRole),
     },
   ];
+
+  const operationsLinks = [
+    { name: "Schedule", href: "/schedule", icon: Calendar },
+    { name: "Routing Map", href: "/map", icon: MapPin },
+    { name: "Timesheets", href: "/timesheets", icon: Clock },
+    { name: "Assets", href: "/assets", icon: Wrench },
+  ];
+
+  const isOperationsActive = operationsLinks.some(
+    (item) => pathname === item.href || pathname.startsWith(item.href)
+  );
 
   const toggleTheme = () => {
     if (resolvedTheme === "dark") {
@@ -131,15 +140,66 @@ export default function Navbar() {
 
             {/* Navigation links - rendered only if authenticated */}
             {isAuthenticated && (
-              <nav className="hidden lg:flex ml-6 space-x-1">
+              <nav className="hidden lg:flex ml-6 space-x-1 items-center">
+                {/* Dashboard Link */}
+                <Link
+                  href="/"
+                  className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                    pathname === "/"
+                      ? "bg-slate-800 dark:bg-slate-800 text-blue-400 border border-slate-700 shadow-sm"
+                      : "text-slate-300 hover:bg-slate-800/60 dark:hover:bg-slate-900/60 hover:text-white"
+                  }`}
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Dashboard</span>
+                </Link>
+
+                {/* Operations Dropdown */}
+                <div className="relative group">
+                  <button
+                    type="button"
+                    className={`flex items-center space-x-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors ${
+                      isOperationsActive
+                        ? "bg-slate-800 dark:bg-slate-800 text-blue-400 border border-slate-700 shadow-sm"
+                        : "text-slate-300 hover:bg-slate-800/60 dark:hover:bg-slate-900/60 hover:text-white"
+                    }`}
+                  >
+                    <Briefcase className="w-3.5 h-3.5" />
+                    <span>Operations</span>
+                    <ChevronDown className="w-3 h-3 text-slate-400 group-hover:text-white transition-transform group-hover:rotate-180 duration-150" />
+                  </button>
+
+                  <div className="absolute left-0 mt-1 w-48 bg-slate-900 dark:bg-slate-950 border border-slate-800 rounded-lg shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 z-50 py-1 divide-y divide-slate-800">
+                    <div className="py-1">
+                      {operationsLinks.map((op) => {
+                        const OpIcon = op.icon;
+                        const isOpActive =
+                          pathname === op.href || pathname.startsWith(op.href);
+                        return (
+                          <Link
+                            key={op.name}
+                            href={op.href}
+                            className={`flex items-center space-x-2 px-3.5 py-2 text-xs font-medium transition-colors ${
+                              isOpActive
+                                ? "bg-slate-800 text-blue-400 font-semibold"
+                                : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                            }`}
+                          >
+                            <OpIcon className="w-3.5 h-3.5 text-blue-400" />
+                            <span>{op.name}</span>
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Remaining Nav Links */}
                 {navLinks
-                  .filter((link) => link.show)
+                  .filter((link) => link.name !== "Dashboard" && link.show)
                   .map((link) => {
                     const Icon = link.icon;
-                    const isActive =
-                      link.href === "/"
-                        ? pathname === "/"
-                        : pathname.startsWith(link.href);
+                    const isActive = pathname.startsWith(link.href);
                     return (
                       <Link
                         key={link.name}
@@ -266,30 +326,69 @@ export default function Navbar() {
 
         {/* Mobile Navigation Links */}
         {isAuthenticated && (
-          <div className="lg:hidden flex space-x-1 pb-3 overflow-x-auto">
-            {navLinks
-              .filter((link) => link.show)
-              .map((link) => {
-                const Icon = link.icon;
-                const isActive =
-                  link.href === "/"
-                    ? pathname === "/"
-                    : pathname.startsWith(link.href);
-                return (
-                  <Link
-                    key={link.name}
-                    href={link.href}
-                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap ${
-                      isActive
-                        ? "bg-slate-800 text-blue-400 border border-slate-700"
-                        : "text-slate-300 hover:bg-slate-800 hover:text-white"
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{link.name}</span>
-                  </Link>
-                );
-              })}
+          <div className="lg:hidden flex flex-col space-y-2 pb-3">
+            {/* Primary Mobile Scrollable Links */}
+            <div className="flex space-x-1 overflow-x-auto pb-1">
+              <Link
+                href="/"
+                className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap ${
+                  pathname === "/"
+                    ? "bg-slate-800 text-blue-400 border border-slate-700"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                }`}
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>Dashboard</span>
+              </Link>
+              {navLinks
+                .filter((link) => link.name !== "Dashboard" && link.show)
+                .map((link) => {
+                  const Icon = link.icon;
+                  const isActive = pathname.startsWith(link.href);
+                  return (
+                    <Link
+                      key={link.name}
+                      href={link.href}
+                      className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap ${
+                        isActive
+                          ? "bg-slate-800 text-blue-400 border border-slate-700"
+                          : "text-slate-300 hover:bg-slate-800 hover:text-white"
+                      }`}
+                    >
+                      <Icon className="w-3.5 h-3.5" />
+                      <span>{link.name}</span>
+                    </Link>
+                  );
+                })}
+            </div>
+
+            {/* Mobile Operations Sub-Links Header */}
+            <div className="bg-slate-800/60 rounded-lg p-1.5 border border-slate-800">
+              <div className="text-[10px] uppercase font-bold text-slate-400 px-2 py-0.5 tracking-wider">
+                Operations
+              </div>
+              <div className="grid grid-cols-2 gap-1 pt-1">
+                {operationsLinks.map((op) => {
+                  const OpIcon = op.icon;
+                  const isOpActive =
+                    pathname === op.href || pathname.startsWith(op.href);
+                  return (
+                    <Link
+                      key={op.name}
+                      href={op.href}
+                      className={`flex items-center space-x-1.5 px-2.5 py-1 rounded text-xs font-medium ${
+                        isOpActive
+                          ? "bg-slate-800 text-blue-400 border border-slate-700"
+                          : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                      }`}
+                    >
+                      <OpIcon className="w-3 h-3 text-blue-400" />
+                      <span className="truncate">{op.name}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         )}
       </div>
