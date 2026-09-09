@@ -14,8 +14,10 @@ export interface GeocodeResult {
 }
 
 export interface ParcelInfo {
-  taxParcelId: string | null;
-  acres: number | null;
+  parcelId: string | null;
+  taxParcelId?: string | null;
+  deedAcres: number | null;
+  acres?: number | null;
   primaryOwner: string | null;
   propertyClass: string | null;
   county?: string | null;
@@ -25,14 +27,17 @@ export interface ParcelInfo {
 export interface EnrichmentData {
   latitude: number | null;
   longitude: number | null;
-  county: string | null;
-  state: string | null;
+  parcelId: string | null;
   taxParcelId: string | null;
+  deedAcres: number | null;
   acres: number | null;
   primaryOwner: string | null;
   propertyClass: string | null;
   satelliteImagePath: string | null;
+  county?: string | null;
+  state?: string | null;
   documentId?: string | null;
+  [key: string]: any;
 }
 
 const PAD = 0.0007; // ~250 ft bounding box padding
@@ -161,7 +166,6 @@ export async function queryParcelData(
   const normState = (stateHint || "").trim().toUpperCase();
   const normCounty = (countyHint || "").trim().toLowerCase();
 
-  // Helper to execute ArcGIS REST spatial query
   const runEsriQuery = async (
     serviceUrl: string,
     outFields: string = "*"
@@ -177,7 +181,6 @@ export async function queryParcelData(
     return response.json();
   };
 
-  // Determine query strategy
   const isNC = normState === "NC" || normState === "NORTH CAROLINA";
   const isNY = normState === "NY" || normState === "NEW YORK";
   const isNassau = isNY && normCounty.includes("nassau");
@@ -196,9 +199,13 @@ export async function queryParcelData(
         if (acres === null && feat.geometry?.rings) {
           acres = calculateAcreageFromRings(feat.geometry.rings, lat);
         }
+        const parsedAcres = acres ? parseFloat(String(acres)) : null;
+        const parcelId = attrs.SBL_KEY || attrs.SBL || attrs.PRINT_KEY || attrs.PARCEL_ID || null;
         return {
-          taxParcelId: attrs.SBL_KEY || attrs.SBL || attrs.PRINT_KEY || attrs.PARCEL_ID || null,
-          acres: acres ? parseFloat(String(acres)) : null,
+          parcelId,
+          taxParcelId: parcelId,
+          deedAcres: parsedAcres,
+          acres: parsedAcres,
           primaryOwner: attrs.OWNER_NAME || attrs.OWNER || attrs.PRIMARY_OWNER || null,
           propertyClass: attrs.PROP_CLASS || attrs.CLASS || null,
           county: "Nassau",
@@ -210,7 +217,7 @@ export async function queryParcelData(
     }
   }
 
-  // 2. If NY (Suffolk, Westchester, Rockland, Putnam, etc. - NYS ITS)
+  // 2. If NY (NYS Tax Parcels Public)
   if (isNY || (!isNC && !normState)) {
     try {
       const nysData = await runEsriQuery(
@@ -228,15 +235,19 @@ export async function queryParcelData(
         if (finalAcres === null && feat.geometry?.rings) {
           finalAcres = calculateAcreageFromRings(feat.geometry.rings, lat);
         }
+        const formattedAcres = finalAcres ? Math.round(finalAcres * 1000) / 1000 : null;
+        const parcelId =
+          attrs.PRINT_KEY ||
+          attrs.SWIS_SBL_ID ||
+          attrs.SBL ||
+          attrs.PARCEL_ADDR ||
+          null;
 
         return {
-          taxParcelId:
-            attrs.PRINT_KEY ||
-            attrs.SWIS_SBL_ID ||
-            attrs.SBL ||
-            attrs.PARCEL_ADDR ||
-            null,
-          acres: finalAcres ? Math.round(finalAcres * 1000) / 1000 : null,
+          parcelId,
+          taxParcelId: parcelId,
+          deedAcres: formattedAcres,
+          acres: formattedAcres,
           primaryOwner: attrs.PRIMARY_OWNER || null,
           propertyClass: attrs.PROP_CLASS ? String(attrs.PROP_CLASS) : null,
           county: attrs.COUNTY_NAME || null,
@@ -262,10 +273,14 @@ export async function queryParcelData(
         if (acres === null && feat.geometry?.rings) {
           acres = calculateAcreageFromRings(feat.geometry.rings, lat);
         }
+        const formattedAcres = acres ? Math.round(parseFloat(String(acres)) * 1000) / 1000 : null;
+        const parcelId = attrs.parno || attrs.pin || attrs.parcel_id || null;
 
         return {
-          taxParcelId: attrs.parno || attrs.pin || attrs.parcel_id || null,
-          acres: acres ? Math.round(parseFloat(String(acres)) * 1000) / 1000 : null,
+          parcelId,
+          taxParcelId: parcelId,
+          deedAcres: formattedAcres,
+          acres: formattedAcres,
           primaryOwner: attrs.ownname || null,
           propertyClass: attrs.propclass || null,
           county: attrs.cntynam || null,
@@ -277,7 +292,7 @@ export async function queryParcelData(
     }
   }
 
-  // Fallback: If neither state matched or specific endpoint returned 0 features, try NYS ITS as general test
+  // Fallback NYS query
   try {
     const fallbackNYS = await runEsriQuery(
       "https://gisservices.its.ny.gov/arcgis/rest/services/NYS_Tax_Parcels_Public/MapServer/1/query",
@@ -294,9 +309,13 @@ export async function queryParcelData(
       if (finalAcres === null && feat.geometry?.rings) {
         finalAcres = calculateAcreageFromRings(feat.geometry.rings, lat);
       }
+      const formattedAcres = finalAcres ? Math.round(finalAcres * 1000) / 1000 : null;
+      const parcelId = attrs.PRINT_KEY || attrs.SWIS_SBL_ID || attrs.SBL || null;
       return {
-        taxParcelId: attrs.PRINT_KEY || attrs.SWIS_SBL_ID || attrs.SBL || null,
-        acres: finalAcres ? Math.round(finalAcres * 1000) / 1000 : null,
+        parcelId,
+        taxParcelId: parcelId,
+        deedAcres: formattedAcres,
+        acres: formattedAcres,
         primaryOwner: attrs.PRIMARY_OWNER || attrs.OWNER || null,
         propertyClass: attrs.PROP_CLASS ? String(attrs.PROP_CLASS) : null,
         county: attrs.COUNTY_NAME || null,
@@ -339,26 +358,24 @@ export async function fetchSatelliteImageBuffer(
 }
 
 /**
- * Step 4: Save image buffer to local storage (/public/uploads/satellite) and optionally S3/MinIO
+ * Step 4: Save image buffer to local storage (/public/uploads/satellite/${recordId}.png) and optionally S3/MinIO
  */
 export async function saveSatelliteImage(
   imageBuffer: Buffer,
-  entityId: string,
-  entityType: "ORDER" | "QUOTE" = "ORDER"
+  recordId: string,
+  entityType: "ORDER" | "QUOTE" | "quote" | "order" = "ORDER"
 ): Promise<{ relativeUrl: string; s3Key?: string }> {
-  const timestamp = Date.now();
-  const fileName = `satellite-${entityType.toLowerCase()}-${entityId}-${timestamp}.png`;
+  const fileName = `${recordId}.png`;
 
-  // 1. Ensure local public uploads directory exists
+  // Ensure public/uploads/satellite directory exists
   const publicUploadDir = path.join(process.cwd(), "public", "uploads", "satellite");
   await fs.promises.mkdir(publicUploadDir, { recursive: true });
   const localFilePath = path.join(publicUploadDir, fileName);
   await fs.promises.writeFile(localFilePath, imageBuffer);
 
   const relativeUrl = `/uploads/satellite/${fileName}`;
-  const s3Key = `satellite/${entityType.toLowerCase()}/${entityId}/${fileName}`;
+  const s3Key = `satellite/${entityType.toString().toLowerCase()}/${recordId}/${fileName}`;
 
-  // 2. Attempt MinIO / S3 upload if configured
   try {
     const command = new PutObjectCommand({
       Bucket: bucketName,
@@ -368,7 +385,7 @@ export async function saveSatelliteImage(
     });
     await s3Client.send(command);
   } catch (s3Err) {
-    console.warn("Could not upload aerial to S3/MinIO, using local static storage fallback:", s3Err);
+    // Graceful fallback to local storage
   }
 
   return { relativeUrl, s3Key };
@@ -376,198 +393,229 @@ export async function saveSatelliteImage(
 
 /**
  * Main Orchestrator: Enrich Property Data
- * Works seamlessly with Order, Quote, or ad-hoc address string.
+ * Supports signature:
+ * enrichPropertyData(recordId: string, type: 'quote' | 'order', address: string, statePrefix: string)
+ * as well as object target signature.
  */
 export async function enrichPropertyData(
-  target:
-    | string // jobId / orderId / quoteId
+  targetOrRecordId:
+    | string
     | {
         id?: string;
-        entityType?: "ORDER" | "QUOTE";
+        entityType?: "ORDER" | "QUOTE" | "order" | "quote";
         address?: string;
         city?: string;
         state?: string;
         zip?: string;
         county?: string;
       },
-  addressParam?: string,
-  countyParam?: string,
-  stateParam?: string
-): Promise<EnrichmentData> {
-  let entityId: string | null = null;
-  let entityType: "ORDER" | "QUOTE" = "ORDER";
-  let inputAddress = "";
-  let inputCity = "";
-  let inputState = "";
-  let inputZip = "";
-  let inputCounty = "";
+  typeOrAddress?: "quote" | "order" | "QUOTE" | "ORDER" | string,
+  addressOrCounty?: string,
+  statePrefixOrState?: string
+): Promise<any> {
+  let recordId: string | null = null;
+  let type: "quote" | "order" = "order";
+  let address = "";
+  let statePrefix = "";
+  let city = "";
+  let zip = "";
+  let county = "";
 
-  if (typeof target === "string") {
-    entityId = target;
-    inputAddress = addressParam || "";
-    inputCounty = countyParam || "";
-    inputState = stateParam || "";
-  } else {
-    entityId = target.id || null;
-    entityType = target.entityType || "ORDER";
-    inputAddress = target.address || "";
-    inputCity = target.city || "";
-    inputState = target.state || "";
-    inputZip = target.zip || "";
-    inputCounty = target.county || "";
-  }
-
-  // If entityId is provided and address fields are incomplete, retrieve from database
-  let orderRecord: any = null;
-  let quoteRecord: any = null;
-
-  if (entityId) {
-    orderRecord = await prisma.order.findUnique({
-      where: { id: entityId },
-    });
-
-    if (orderRecord) {
-      entityType = "ORDER";
-      inputAddress = inputAddress || orderRecord.address;
-      inputCity = inputCity || orderRecord.city || "";
-      inputState = inputState || orderRecord.state || "";
-      inputZip = inputZip || orderRecord.zip || "";
-      inputCounty = inputCounty || orderRecord.county || "";
+  if (typeof targetOrRecordId === "string") {
+    recordId = targetOrRecordId;
+    const secondArg = (typeOrAddress || "").toLowerCase();
+    if (secondArg === "quote" || secondArg === "order") {
+      type = secondArg as "quote" | "order";
+      address = addressOrCounty || "";
+      statePrefix = statePrefixOrState || "";
     } else {
-      quoteRecord = await prisma.quote.findUnique({
-        where: { id: entityId },
-      });
-      if (quoteRecord) {
-        entityType = "QUOTE";
-        inputAddress = inputAddress || quoteRecord.address;
-        inputCity = inputCity || quoteRecord.city || "";
-        inputState = inputState || quoteRecord.state || "";
-        inputZip = inputZip || quoteRecord.zip || "";
-        inputCounty = inputCounty || quoteRecord.county || "";
-      }
+      // Legacy string call
+      address = (typeOrAddress as string) || "";
+      county = addressOrCounty || "";
+      statePrefix = statePrefixOrState || "";
     }
+  } else if (typeof targetOrRecordId === "object" && targetOrRecordId !== null) {
+    recordId = targetOrRecordId.id || null;
+    const eType = (targetOrRecordId.entityType || "order").toLowerCase();
+    type = eType === "quote" ? "quote" : "order";
+    address = targetOrRecordId.address || "";
+    city = targetOrRecordId.city || "";
+    statePrefix = targetOrRecordId.state || "";
+    zip = targetOrRecordId.zip || "";
+    county = targetOrRecordId.county || "";
   }
 
-  // Construct full address query
-  const fullAddressParts = [inputAddress, inputCity, inputState, inputZip]
-    .filter(Boolean)
-    .join(", ");
-  const queryAddress = fullAddressParts || inputAddress;
+  // If recordId is provided, query existing DB record to fill in missing address or state
+  let quoteRecord: any = null;
+  let orderRecord: any = null;
 
-  if (!queryAddress) {
-    throw new Error("Cannot enrich property: No address provided");
-  }
-
-  // Step 1: Geocode
-  const geocode = await geocodeAddress(queryAddress);
-  const lat = geocode?.latitude ?? (orderRecord?.latitude || quoteRecord?.latitude || null);
-  const lon = geocode?.longitude ?? (orderRecord?.longitude || quoteRecord?.longitude || null);
-  const detectedState = inputState || geocode?.state || null;
-  const detectedCounty = inputCounty || geocode?.county || null;
-
-  let parcelInfo: ParcelInfo | null = null;
-  let satelliteImagePath: string | null = null;
-  let createdDocId: string | null = null;
-
-  if (lat !== null && lon !== null) {
-    // Step 2: Query Parcel Records
-    parcelInfo = await queryParcelData(lat, lon, detectedState, detectedCounty);
-
-    // Step 3: Fetch Aerial Imagery
-    const imageBuffer = await fetchSatelliteImageBuffer(lat, lon);
-    if (imageBuffer) {
-      const storageKey = entityId || `temp-${Date.now()}`;
-      const { relativeUrl, s3Key } = await saveSatelliteImage(
-        imageBuffer,
-        storageKey,
-        entityType
-      );
-      satelliteImagePath = relativeUrl;
-
-      // Step 4: Create Document record if associated with Order or Quote
-      if (entityId) {
-        try {
-          const doc = await prisma.document.create({
-            data: {
-              fileName: `Aerial Satellite Map - ${queryAddress.slice(0, 30)}.png`,
-              s3Key: s3Key || relativeUrl,
-              mimeType: "image/png",
-              docType: "Aerial",
-              orderId: entityType === "ORDER" ? entityId : null,
-              quoteId: entityType === "QUOTE" ? entityId : null,
-            },
-          });
-          createdDocId = doc.id;
-        } catch (docErr) {
-          console.warn("Could not create Document record for aerial image:", docErr);
+  if (recordId) {
+    if (type === "quote") {
+      quoteRecord = await prisma.quote.findUnique({ where: { id: recordId } });
+      if (quoteRecord) {
+        address = address || quoteRecord.address;
+        city = city || quoteRecord.city || "";
+        statePrefix = statePrefix || quoteRecord.state || "";
+        zip = zip || quoteRecord.zip || "";
+        county = county || quoteRecord.county || "";
+      }
+    } else {
+      orderRecord = await prisma.order.findUnique({ where: { id: recordId } });
+      if (orderRecord) {
+        address = address || orderRecord.address;
+        city = city || orderRecord.city || "";
+        statePrefix = statePrefix || orderRecord.state || "";
+        zip = zip || orderRecord.zip || "";
+        county = county || orderRecord.county || "";
+      } else {
+        // Check if it's a quote ID
+        quoteRecord = await prisma.quote.findUnique({ where: { id: recordId } });
+        if (quoteRecord) {
+          type = "quote";
+          address = address || quoteRecord.address;
+          city = city || quoteRecord.city || "";
+          statePrefix = statePrefix || quoteRecord.state || "";
+          zip = zip || quoteRecord.zip || "";
+          county = county || quoteRecord.county || "";
         }
       }
     }
   }
 
-  const finalCounty = parcelInfo?.county || detectedCounty || null;
+  const fullAddressParts = [address, city, statePrefix, zip].filter(Boolean).join(", ");
+  const queryAddress = fullAddressParts || address;
+
+  if (!queryAddress) {
+    throw new Error("Cannot enrich property: No address provided");
+  }
+
+  // 1. Geocoding
+  const geocode = await geocodeAddress(queryAddress);
+  const lat = geocode?.latitude ?? (orderRecord?.latitude || quoteRecord?.latitude || null);
+  const lon = geocode?.longitude ?? (orderRecord?.longitude || quoteRecord?.longitude || null);
+  const detectedState = statePrefix || geocode?.state || "";
+  const detectedCounty = county || geocode?.county || "";
+
+  let parcelInfo: ParcelInfo | null = null;
+  let satelliteImagePath: string | null = null;
+
+  if (lat !== null && lon !== null) {
+    // 2. Parcel Query
+    parcelInfo = await queryParcelData(lat, lon, detectedState, detectedCounty);
+
+    // 3. Aerial Satellite Snapshot
+    const imageBuffer = await fetchSatelliteImageBuffer(lat, lon);
+    if (imageBuffer && recordId) {
+      const saved = await saveSatelliteImage(imageBuffer, recordId, type);
+      satelliteImagePath = saved.relativeUrl;
+
+      // Optional document record
+      try {
+        await prisma.document.create({
+          data: {
+            fileName: `Aerial Satellite Map - ${queryAddress.slice(0, 30)}.png`,
+            s3Key: saved.s3Key || saved.relativeUrl,
+            mimeType: "image/png",
+            docType: "Aerial",
+            orderId: type === "order" ? recordId : null,
+            quoteId: type === "quote" ? recordId : null,
+          },
+        });
+      } catch (e) {
+        // Document table insertion is non-blocking
+      }
+    }
+  }
+
   const finalParcelId =
+    parcelInfo?.parcelId ||
     parcelInfo?.taxParcelId ||
+    orderRecord?.parcelId ||
     orderRecord?.taxParcelId ||
+    quoteRecord?.parcelId ||
     quoteRecord?.taxParcelId ||
     null;
+
   const finalAcres =
+    parcelInfo?.deedAcres ??
     parcelInfo?.acres ??
-    (orderRecord?.acres || quoteRecord?.acres || null);
-  const finalOwner =
-    parcelInfo?.primaryOwner ||
-    orderRecord?.primaryOwner ||
-    quoteRecord?.primaryOwner ||
-    null;
-  const finalPropertyClass =
-    parcelInfo?.propertyClass ||
-    orderRecord?.propertyClass ||
-    quoteRecord?.propertyClass ||
+    (type === "order" ? orderRecord?.deedAcres ?? orderRecord?.acres : quoteRecord?.deedAcres ?? quoteRecord?.acres) ??
     null;
 
-  // Step 5: Persist to Database if entity exists
-  if (entityId) {
-    if (entityType === "ORDER" && orderRecord) {
-      await prisma.order.update({
-        where: { id: entityId },
+  const finalOwner =
+    parcelInfo?.primaryOwner ||
+    (type === "order" ? orderRecord?.primaryOwner : quoteRecord?.primaryOwner) ||
+    null;
+
+  const finalPropertyClass =
+    parcelInfo?.propertyClass ||
+    (type === "order" ? orderRecord?.propertyClass : quoteRecord?.propertyClass) ||
+    null;
+
+  const finalCounty = parcelInfo?.county || detectedCounty || null;
+
+  let updatedRecord: any = null;
+
+  // 4. Update Database
+  if (recordId) {
+    if (type === "order") {
+      updatedRecord = await prisma.order.update({
+        where: { id: recordId },
         data: {
           ...(lat !== null && { latitude: lat }),
           ...(lon !== null && { longitude: lon }),
-          ...(finalCounty && { county: finalCounty }),
-          ...(finalParcelId && { taxParcelId: finalParcelId }),
-          ...(finalAcres !== null && { acres: finalAcres }),
+          ...(finalParcelId && { parcelId: finalParcelId, taxParcelId: finalParcelId }),
+          ...(finalAcres !== null && { deedAcres: finalAcres, acres: finalAcres }),
           ...(finalOwner && { primaryOwner: finalOwner }),
           ...(finalPropertyClass && { propertyClass: finalPropertyClass }),
+          ...(finalCounty && { county: finalCounty }),
           ...(satelliteImagePath && { satelliteImagePath }),
         },
+        include: {
+          surveyType: true,
+          assignedUser: true,
+          marketer: true,
+          client: true,
+          spoke: true,
+          documents: { orderBy: { uploadedAt: "desc" } },
+        },
       });
-    } else if (entityType === "QUOTE" && quoteRecord) {
-      await prisma.quote.update({
-        where: { id: entityId },
+    } else {
+      updatedRecord = await prisma.quote.update({
+        where: { id: recordId },
         data: {
           ...(lat !== null && { latitude: lat }),
           ...(lon !== null && { longitude: lon }),
-          ...(finalCounty && { county: finalCounty }),
-          ...(finalParcelId && { taxParcelId: finalParcelId }),
-          ...(finalAcres !== null && { acres: finalAcres }),
+          ...(finalParcelId && { parcelId: finalParcelId, taxParcelId: finalParcelId }),
+          ...(finalAcres !== null && { deedAcres: finalAcres, acres: finalAcres }),
           ...(finalOwner && { primaryOwner: finalOwner }),
           ...(finalPropertyClass && { propertyClass: finalPropertyClass }),
+          ...(finalCounty && { county: finalCounty }),
           ...(satelliteImagePath && { satelliteImagePath }),
+        },
+        include: {
+          surveyType: true,
+          csr: true,
+          marketer: true,
+          client: true,
+          spoke: true,
+          documents: { orderBy: { uploadedAt: "desc" } },
         },
       });
     }
   }
 
-  return {
+  return updatedRecord || {
     latitude: lat,
     longitude: lon,
-    county: finalCounty,
-    state: detectedState,
+    parcelId: finalParcelId,
     taxParcelId: finalParcelId,
+    deedAcres: finalAcres,
     acres: finalAcres,
     primaryOwner: finalOwner,
     propertyClass: finalPropertyClass,
-    satelliteImagePath,
-    documentId: createdDocId,
+    satelliteImagePath: satelliteImagePath || (type === "order" ? orderRecord?.satelliteImagePath : quoteRecord?.satelliteImagePath) || null,
+    county: finalCounty,
+    state: detectedState,
   };
 }

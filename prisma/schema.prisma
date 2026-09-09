@@ -73,8 +73,8 @@ model User {
   longitude      Float?
   spokeId        String?
   spoke          Spoke?      @relation(fields: [spokeId], references: [id])
-  assignedQuotes Quote[]
-  assignedOrders Order[]
+  assignedQuotes Quote[]     @relation("QuoteCSR")
+  assignedOrders Order[]     @relation("OrderAssignedUser")
   marketedQuotes Quote[]     @relation("QuoteMarketer")
   marketedOrders Order[]     @relation("OrderMarketer")
   researchedOrders Order[]   @relation("OrderResearcher")
@@ -129,17 +129,20 @@ model Quote {
   state            String
   zip              String
   county           String?
+  parcelId         String?
   taxParcelId      String?
+  deedAcres        Float?
   acres            Float?
   primaryOwner     String?
   propertyClass    String?
   satelliteImagePath String?
   latitude         Float?
   longitude        Float?
+  complicatingFactors Json?
   surveyTypeId     String
   surveyType       SurveyType  @relation(fields: [surveyTypeId], references: [id])
   assignedCsrId    String?
-  csr              User?       @relation(fields: [assignedCsrId], references: [id])
+  csr              User?       @relation("QuoteCSR", fields: [assignedCsrId], references: [id])
   marketerId       String?
   marketer         User?       @relation("QuoteMarketer", fields: [marketerId], references: [id])
   spokeId          String?
@@ -195,7 +198,7 @@ model Order {
   surveyTypeId      String
   surveyType        SurveyType  @relation(fields: [surveyTypeId], references: [id])
   assignedUserId    String?
-  assignedUser      User?       @relation(fields: [assignedUserId], references: [id])
+  assignedUser      User?       @relation("OrderAssignedUser", fields: [assignedUserId], references: [id])
   marketerId        String?
   marketer          User?       @relation("OrderMarketer", fields: [marketerId], references: [id])
   spokeId           String?
@@ -215,14 +218,17 @@ model Order {
 
   // Property & Legal
   county            String?
+  parcelId          String?
   taxParcelId       String?
   lot               String?
   block             String?
   subdivision       String?
+  deedAcres         Float?
   acres             Float?
   primaryOwner      String?
   propertyClass     String?
   satelliteImagePath String?
+  complicatingFactors Json?
 
   // Job Specifics
   orderedBy         String?
@@ -414,3 +420,32 @@ model SystemSettings {
   orderConfirmEmailTemplate String?  @db.Text
   updatedAt                 DateTime @updatedAt
 }
+
+model PricingZone {
+  id          String        @id @default(cuid())
+  name        String        
+  state       String        
+  description String?
+  quoteOnly   Boolean       @default(false)
+  outOfArea   Boolean       @default(false)
+  basePrice   Float?        
+  bands       PricingBand[]
+}
+
+model PricingBand {
+  id        String      @id @default(cuid())
+  zoneId    String
+  maxAcres  Float       
+  price     Float
+  zone      PricingZone @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+}
+
+model PricingAddon {
+  id          String  @id @default(cuid())
+  state       String  
+  key         String  @unique 
+  label       String
+  price       Float
+  isPerUnit   Boolean @default(false) 
+}
+

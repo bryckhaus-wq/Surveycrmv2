@@ -655,6 +655,13 @@ export default function AdminPage() {
             Company Profile
           </Link>
           <Link
+            href="/admin/pricing"
+            className="inline-flex items-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-xl shadow-sm transition-colors"
+          >
+            <DollarSign className="w-4 h-4 mr-1.5 text-emerald-600 dark:text-emerald-400" />
+            Pricing Matrix
+          </Link>
+          <Link
             href="/admin/billing"
             className="inline-flex items-center px-3.5 py-2 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-700 text-xs font-semibold rounded-xl shadow-sm transition-colors"
           >
