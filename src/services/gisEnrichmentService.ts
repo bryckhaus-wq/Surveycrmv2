@@ -43,7 +43,7 @@ export interface EnrichmentData {
 const PAD = 0.0007; // ~250 ft bounding box padding
 
 /**
- * Calculates acreage from EPSG:4326 polygon rings using Shoelace area with geodesic lat/lon scaling
+ * Calculates acreage from EPSG:4326 or projected polygon rings
  */
 function calculateAcreageFromRings(rings: number[][][], centerLat: number): number | null {
   if (!rings || rings.length === 0) return null;
@@ -51,39 +51,111 @@ function calculateAcreageFromRings(rings: number[][][], centerLat: number): numb
   try {
     let totalSquareMeters = 0;
     const latRad = (centerLat * Math.PI) / 180;
-    // Meters per degree
-    const metersPerLat = 111132.954 - 559.822 * Math.cos(2 * latRad) + 1.175 * Math.cos(4 * latRad);
-    const metersPerLon = 111412.84 * Math.cos(latRad) - 93.5 * Math.cos(3 * latRad);
 
-    for (let r = 0; r < rings.length; r++) {
-      const ring = rings[r];
-      if (ring.length < 3) continue;
+    const firstCoord = rings[0]?.[0];
+    if (!firstCoord || firstCoord.length < 2) return null;
+    const isDegrees = Math.abs(firstCoord[0]) <= 180 && Math.abs(firstCoord[1]) <= 90;
 
-      let ringArea = 0;
-      for (let i = 0; i < ring.length; i++) {
-        const j = (i + 1) % ring.length;
-        const x1 = ring[i][0] * metersPerLon;
-        const y1 = ring[i][1] * metersPerLat;
-        const x2 = ring[j][0] * metersPerLon;
-        const y2 = ring[j][1] * metersPerLat;
-        ringArea += x1 * y2 - x2 * y1;
+    if (isDegrees) {
+      // Meters per degree at given latitude
+      const metersPerLat = 111132.954 - 559.822 * Math.cos(2 * latRad) + 1.175 * Math.cos(4 * latRad);
+      const metersPerLon = 111412.84 * Math.cos(latRad) - 93.5 * Math.cos(3 * latRad);
+
+      for (let r = 0; r < rings.length; r++) {
+        const ring = rings[r];
+        if (ring.length < 3) continue;
+
+        let ringArea = 0;
+        for (let i = 0; i < ring.length; i++) {
+          const j = (i + 1) % ring.length;
+          const x1 = ring[i][0] * metersPerLon;
+          const y1 = ring[i][1] * metersPerLat;
+          const x2 = ring[j][0] * metersPerLon;
+          const y2 = ring[j][1] * metersPerLat;
+          ringArea += x1 * y2 - x2 * y1;
+        }
+        const area = Math.abs(ringArea) / 2;
+        // Outer ring adds, inner rings (holes) subtract
+        if (r === 0) {
+          totalSquareMeters += area;
+        } else {
+          totalSquareMeters -= area;
+        }
       }
-      const area = Math.abs(ringArea) / 2;
-      // Outer ring adds, inner rings (holes) subtract
-      if (r === 0) {
-        totalSquareMeters += area;
-      } else {
-        totalSquareMeters -= area;
+    } else {
+      // Projected coordinates (e.g. Web Mercator EPSG:3857)
+      // Web Mercator area distortion scale is cos^2(lat)
+      const mercatorScale = Math.cos(latRad) * Math.cos(latRad);
+      for (let r = 0; r < rings.length; r++) {
+        const ring = rings[r];
+        if (ring.length < 3) continue;
+
+        let ringArea = 0;
+        for (let i = 0; i < ring.length; i++) {
+          const j = (i + 1) % ring.length;
+          ringArea += ring[i][0] * ring[j][1] - ring[j][0] * ring[i][1];
+        }
+        const area = (Math.abs(ringArea) / 2) * mercatorScale;
+        if (r === 0) {
+          totalSquareMeters += area;
+        } else {
+          totalSquareMeters -= area;
+        }
       }
     }
 
     if (totalSquareMeters <= 0) return null;
     const acres = totalSquareMeters / 4046.8564224;
+    // Sanity check: single parcel should not exceed 100,000 acres
+    if (acres > 100000) return null;
     return Math.round(acres * 1000) / 1000;
   } catch (err) {
     console.error("Failed to calculate polygon acreage:", err);
     return null;
   }
+}
+
+/**
+ * Extracts valid positive acreage from GIS feature attributes
+ */
+function extractAcreageFromAttributes(attrs: Record<string, any> | undefined | null): number | null {
+  if (!attrs) return null;
+
+  // 1. Direct acreage fields (must be positive numbers)
+  const directAcreKeys = [
+    "ACRES",
+    "CALC_ACRES",
+    "GISACRES",
+    "DEED_ACRES",
+    "calcacres",
+    "gisacres",
+    "acres",
+    "calc_acres",
+    "deed_acres",
+    "TOTAL_ACRES",
+    "PARCEL_ACRES",
+  ];
+  for (const key of directAcreKeys) {
+    if (attrs[key] !== undefined && attrs[key] !== null) {
+      const val = parseFloat(String(attrs[key]));
+      if (!isNaN(val) && val > 0 && val < 100000) {
+        return Math.round(val * 1000) / 1000;
+      }
+    }
+  }
+
+  // 2. Square footage fields (converted to acres)
+  const sqFtKeys = ["SQ_FT", "SQFT", "sq_ft", "sqft", "LOT_SQFT", "LOT_SIZE_SQFT"];
+  for (const key of sqFtKeys) {
+    if (attrs[key] !== undefined && attrs[key] !== null) {
+      const val = parseFloat(String(attrs[key]));
+      if (!isNaN(val) && val > 0 && val < 1000000000) {
+        return Math.round((val / 43560) * 1000) / 1000;
+      }
+    }
+  }
+
+  return null;
 }
 
 /**
@@ -172,7 +244,7 @@ export async function queryParcelData(
   ): Promise<any> => {
     const url = `${serviceUrl}?geometry=${encodeURIComponent(
       bbox
-    )}&geometryType=esriGeometryEnvelope&inSR=4326&spatialRel=esriSpatialRelIntersects&outFields=${encodeURIComponent(
+    )}&geometryType=esriGeometryEnvelope&inSR=4326&outSR=4326&spatialRel=esriSpatialRelIntersects&outFields=${encodeURIComponent(
       outFields
     )}&returnGeometry=true&f=json`;
 
@@ -195,11 +267,10 @@ export async function queryParcelData(
       if (nassauData?.features && nassauData.features.length > 0) {
         const feat = nassauData.features[0];
         const attrs = feat.attributes || {};
-        let acres = attrs.ACRES || attrs.GISACRES || attrs.CALC_ACRES || null;
-        if (acres === null && feat.geometry?.rings) {
-          acres = calculateAcreageFromRings(feat.geometry.rings, lat);
+        let parsedAcres = extractAcreageFromAttributes(attrs);
+        if (parsedAcres === null && feat.geometry?.rings) {
+          parsedAcres = calculateAcreageFromRings(feat.geometry.rings, lat);
         }
-        const parsedAcres = acres ? parseFloat(String(acres)) : null;
         const parcelId = attrs.SBL_KEY || attrs.SBL || attrs.PRINT_KEY || attrs.PARCEL_ID || null;
         return {
           parcelId,
@@ -227,15 +298,10 @@ export async function queryParcelData(
       if (nysData?.features && nysData.features.length > 0) {
         const feat = nysData.features[0];
         const attrs = feat.attributes || {};
-        const acresVal =
-          attrs.ACRES ??
-          attrs.CALC_ACRES ??
-          (attrs.SQ_FT ? attrs.SQ_FT / 43560 : null);
-        let finalAcres = acresVal ? parseFloat(String(acresVal)) : null;
-        if (finalAcres === null && feat.geometry?.rings) {
-          finalAcres = calculateAcreageFromRings(feat.geometry.rings, lat);
+        let formattedAcres = extractAcreageFromAttributes(attrs);
+        if (formattedAcres === null && feat.geometry?.rings) {
+          formattedAcres = calculateAcreageFromRings(feat.geometry.rings, lat);
         }
-        const formattedAcres = finalAcres ? Math.round(finalAcres * 1000) / 1000 : null;
         const parcelId =
           attrs.PRINT_KEY ||
           attrs.SWIS_SBL_ID ||
@@ -269,11 +335,10 @@ export async function queryParcelData(
       if (ncData?.features && ncData.features.length > 0) {
         const feat = ncData.features[0];
         const attrs = feat.attributes || {};
-        let acres = attrs.gisacres || attrs.calcacres || null;
-        if (acres === null && feat.geometry?.rings) {
-          acres = calculateAcreageFromRings(feat.geometry.rings, lat);
+        let formattedAcres = extractAcreageFromAttributes(attrs);
+        if (formattedAcres === null && feat.geometry?.rings) {
+          formattedAcres = calculateAcreageFromRings(feat.geometry.rings, lat);
         }
-        const formattedAcres = acres ? Math.round(parseFloat(String(acres)) * 1000) / 1000 : null;
         const parcelId = attrs.parno || attrs.pin || attrs.parcel_id || null;
 
         return {
@@ -301,15 +366,10 @@ export async function queryParcelData(
     if (fallbackNYS?.features && fallbackNYS.features.length > 0) {
       const feat = fallbackNYS.features[0];
       const attrs = feat.attributes || {};
-      const acresVal =
-        attrs.ACRES ??
-        attrs.CALC_ACRES ??
-        (attrs.SQ_FT ? attrs.SQ_FT / 43560 : null);
-      let finalAcres = acresVal ? parseFloat(String(acresVal)) : null;
-      if (finalAcres === null && feat.geometry?.rings) {
-        finalAcres = calculateAcreageFromRings(feat.geometry.rings, lat);
+      let formattedAcres = extractAcreageFromAttributes(attrs);
+      if (formattedAcres === null && feat.geometry?.rings) {
+        formattedAcres = calculateAcreageFromRings(feat.geometry.rings, lat);
       }
-      const formattedAcres = finalAcres ? Math.round(finalAcres * 1000) / 1000 : null;
       const parcelId = attrs.PRINT_KEY || attrs.SWIS_SBL_ID || attrs.SBL || null;
       return {
         parcelId,
