@@ -69,13 +69,13 @@ export function normalizeProductType(productName?: string | null): string {
 function getManagerInfo(state: string) {
   if (state === "NC") {
     return {
-      assignedManager: "Cliff Wagner or Jay Scalice",
-      assignedRole: "North Carolina Project Managers",
+      assignedManager: "Project Manager (NC Division)",
+      assignedRole: "North Carolina Project Manager",
     };
   }
   return {
-    assignedManager: "Sara Scalice",
-    assignedRole: "New York Customer Service Manager",
+    assignedManager: "Project Manager (NY Division)",
+    assignedRole: "New York Project Manager",
   };
 }
 

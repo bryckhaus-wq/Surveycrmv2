@@ -338,10 +338,12 @@ export async function fetchSatelliteImageBuffer(
   customPad: number = PAD
 ): Promise<Buffer | null> {
   try {
-    const bbox = `${lon - customPad},${lat - customPad},${lon + customPad},${lat + customPad}`;
-    const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${encodeURIComponent(
-      bbox
-    )}&bboxSR=4326&size=800,600&format=png&f=image`;
+    const minLon = lon - customPad;
+    const minLat = lat - customPad;
+    const maxLon = lon + customPad;
+    const maxLat = lat + customPad;
+    const bbox = `${minLon},${minLat},${maxLon},${maxLat}`;
+    const url = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=800,600&format=png&f=image`;
 
     const res = await fetch(url, { method: "GET" });
     if (!res.ok) {

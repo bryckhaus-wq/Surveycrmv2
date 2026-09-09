@@ -1890,7 +1890,7 @@ export default function OrderDetailPage() {
               </div>
 
               {/* Satellite Aerial Imagery Preview */}
-              {(formData.satelliteImagePath || order?.satelliteImagePath) && (
+              {(formData.satelliteImagePath || order?.satelliteImagePath || (formData.address && order?.latitude && order?.longitude)) && (
                 <div className="p-3 bg-slate-900 text-white rounded-lg border border-slate-700 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center">
@@ -1923,8 +1923,19 @@ export default function OrderDetailPage() {
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src={formData.satelliteImagePath || order?.satelliteImagePath || ""}
+                      src={
+                        formData.satelliteImagePath ||
+                        order?.satelliteImagePath ||
+                        (order?.id ? `/api/assets/satellite/${order.id}` : "")
+                      }
                       alt="Property Satellite View"
+                      onError={(e) => {
+                        if (order?.latitude && order?.longitude) {
+                          const pad = 0.0007;
+                          const bbox = `${order.longitude - pad},${order.latitude - pad},${order.longitude + pad},${order.latitude + pad}`;
+                          e.currentTarget.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=800,600&format=png&f=image`;
+                        }
+                      }}
                       className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                     />
                     <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-xs font-medium text-white">
@@ -3185,8 +3196,19 @@ export default function OrderDetailPage() {
             <div className="p-2 bg-black flex items-center justify-center max-h-[75vh] overflow-hidden">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={formData.satelliteImagePath || order?.satelliteImagePath || ""}
+                src={
+                  formData.satelliteImagePath ||
+                  order?.satelliteImagePath ||
+                  (order?.id ? `/api/assets/satellite/${order.id}` : "")
+                }
                 alt="Aerial Satellite High Resolution"
+                onError={(e) => {
+                  if (order?.latitude && order?.longitude) {
+                    const pad = 0.0007;
+                    const bbox = `${order.longitude - pad},${order.latitude - pad},${order.longitude + pad},${order.latitude + pad}`;
+                    e.currentTarget.src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${bbox}&bboxSR=4326&size=800,600&format=png&f=image`;
+                  }
+                }}
                 className="max-h-[72vh] w-auto object-contain rounded"
               />
             </div>

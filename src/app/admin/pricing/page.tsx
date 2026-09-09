@@ -306,7 +306,7 @@ export default function AdminPricingPage() {
               onClick={handleSeedPricing}
               disabled={seeding}
               className="inline-flex items-center px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow transition"
-              title="Populate default Scalice BOOK zone rules and add-ons"
+              title="Populate default regional BOOK zone rules and add-ons"
             >
               {seeding ? (
                 <>
