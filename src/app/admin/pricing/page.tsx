@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -27,6 +27,13 @@ import {
   Eye,
   Check,
   RotateCcw,
+  ZoomIn,
+  ZoomOut,
+  Move,
+  Search,
+  Sliders,
+  Navigation,
+  HelpCircle,
 } from "lucide-react";
 
 interface PricingBandItem {
@@ -60,10 +67,18 @@ interface PricingAddonItem {
 }
 
 // Preset Regional Map Viewports
-const REGIONAL_VIEWPORTS: Record<string, { lat: number; lon: number; zoom: number; name: string }> = {
-  NY: { lat: 40.85, lon: -73.2, zoom: 9, name: "New York (Long Island / NYC / Upstate)" },
-  NC: { lat: 35.75, lon: -78.6, zoom: 8, name: "North Carolina (Raleigh / Clayton)" },
-  FL: { lat: 28.53, lon: -81.37, zoom: 8, name: "Florida (Orlando Metro)" },
+const REGIONAL_VIEWPORTS: Record<
+  string,
+  { lat: number; lon: number; zoom: number; name: string }
+> = {
+  NY: { lat: 40.85, lon: -73.2, zoom: 10, name: "New York (Long Island / NYC)" },
+  NC: { lat: 35.75, lon: -78.6, zoom: 10, name: "North Carolina (Raleigh / Clayton)" },
+  FL: { lat: 28.53, lon: -81.37, zoom: 10, name: "Florida (Orlando / Central FL)" },
+  LI_EAST: { lat: 40.91, lon: -72.65, zoom: 12, name: "Eastern Long Island (Suffolk)" },
+  LI_WEST: { lat: 40.73, lon: -73.6, zoom: 12, name: "Western Long Island (Nassau)" },
+  RALEIGH: { lat: 35.7796, lon: -78.6382, zoom: 13, name: "Raleigh Metro" },
+  CLAYTON: { lat: 35.6507, lon: -78.4564, zoom: 13, name: "Clayton / Johnston" },
+  ORLANDO: { lat: 28.5383, lon: -81.3792, zoom: 13, name: "Orlando Downtown" },
 };
 
 const COLOR_SWATCHES = [
@@ -78,6 +93,101 @@ const COLOR_SWATCHES = [
   { name: "Slate", hex: "#64748b" },
 ];
 
+/* =========================================================================
+   Web Mercator (EPSG:3857) High Precision Projection & Geographic Math
+========================================================================= */
+
+function lonLatToWorld(lon: number, lat: number): { x: number; y: number } {
+  const x = (lon + 180) / 360;
+  const sinLat = Math.sin((lat * Math.PI) / 180);
+  const clampedSin = Math.max(-0.999999, Math.min(0.999999, sinLat));
+  const y = 0.5 - Math.log((1 + clampedSin) / (1 - clampedSin)) / (4 * Math.PI);
+  return { x, y };
+}
+
+function worldToLonLat(x: number, y: number): { lon: number; lat: number } {
+  const lon = x * 360 - 180;
+  const n = Math.PI - 2 * Math.PI * y;
+  const lat = (180 / Math.PI) * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  return {
+    lon: Math.round(lon * 1000000) / 1000000,
+    lat: Math.round(lat * 1000000) / 1000000,
+  };
+}
+
+function coordToPixel(
+  lon: number,
+  lat: number,
+  centerLon: number,
+  centerLat: number,
+  zoom: number,
+  width: number,
+  height: number
+): { x: number; y: number } {
+  const scale = 256 * Math.pow(2, zoom);
+  const worldPt = lonLatToWorld(lon, lat);
+  const centerWorld = lonLatToWorld(centerLon, centerLat);
+
+  const x = width / 2 + (worldPt.x - centerWorld.x) * scale;
+  const y = height / 2 + (worldPt.y - centerWorld.y) * scale;
+  return { x, y };
+}
+
+function pixelToCoord(
+  screenX: number,
+  screenY: number,
+  centerLon: number,
+  centerLat: number,
+  zoom: number,
+  width: number,
+  height: number
+): { lon: number; lat: number } {
+  const scale = 256 * Math.pow(2, zoom);
+  const centerWorld = lonLatToWorld(centerLon, centerLat);
+
+  const worldX = centerWorld.x + (screenX - width / 2) / scale;
+  const worldY = centerWorld.y + (screenY - height / 2) / scale;
+  return worldToLonLat(worldX, worldY);
+}
+
+// Geodesic distance in feet between two coords
+function getDistanceFeet(lon1: number, lat1: number, lon2: number, lat2: number): number {
+  const R = 20902231; // Earth radius in feet
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c);
+}
+
+// Approximate polygon area in acres using spherical polygon formula
+function getPolygonAreaAcres(coords: Array<[number, number]>): number {
+  if (coords.length < 3) return 0;
+  const ring =
+    coords[0][0] === coords[coords.length - 1][0] &&
+    coords[0][1] === coords[coords.length - 1][1]
+      ? coords
+      : [...coords, coords[0]];
+  let total = 0;
+  const degToRad = Math.PI / 180;
+  for (let i = 0; i < ring.length - 1; i++) {
+    const [lon1, lat1] = ring[i];
+    const [lon2, lat2] = ring[i + 1];
+    total +=
+      (lon2 - lon1) *
+      degToRad *
+      (2 + Math.sin(lat1 * degToRad) + Math.sin(lat2 * degToRad));
+  }
+  const areaSqMeters = Math.abs((total * 6378137 * 6378137) / 2.0);
+  const areaAcres = areaSqMeters / 4046.8564224;
+  return Math.round(areaAcres * 100) / 100;
+}
+
 export default function AdminPricingPage() {
   const [selectedState, setSelectedState] = useState<string>("ALL");
   const [activeTab, setActiveTab] = useState<"MAP" | "TABLE">("MAP");
@@ -89,13 +199,31 @@ export default function AdminPricingPage() {
 
   // Map View State
   const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number }>({ lat: 40.85, lon: -73.2 });
-  const [zoomLevel, setZoomLevel] = useState<number>(9);
-  const [mapType, setMapType] = useState<"SATELLITE" | "STREET">("SATELLITE");
+  const [zoomLevel, setZoomLevel] = useState<number>(10);
+  const [mapType, setMapType] = useState<"SATELLITE" | "HYBRID" | "STREET" | "TOPO">("HYBRID");
+  const [mapMode, setMapMode] = useState<"PAN" | "DRAW">("DRAW");
+
+  // Polygon Drawing & Precision Node Editing
   const [isDrawing, setIsDrawing] = useState<boolean>(false);
   const [draftNodes, setDraftNodes] = useState<Array<[number, number]>>([]); // [lon, lat]
   const [cursorCoord, setCursorCoord] = useState<{ lat: number; lon: number } | null>(null);
+  const [cursorScreenPos, setCursorScreenPos] = useState<{ x: number; y: number } | null>(null);
+  const [hoveredNodeIndex, setHoveredNodeIndex] = useState<number | null>(null);
+  const [draggingNodeIndex, setDraggingNodeIndex] = useState<number | null>(null);
+  const [isSnappedToStart, setIsSnappedToStart] = useState<boolean>(false);
+
+  // Hover & Inspector
   const [hoveredZoneId, setHoveredZoneId] = useState<string | null>(null);
   const [selectedZoneOnMap, setSelectedZoneOnMap] = useState<PricingZoneItem | null>(null);
+
+  // Panning State
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const panStartRef = useRef<{ clientX: number; clientY: number; centerWorld: { x: number; y: number } } | null>(null);
+  const isSpacePressedRef = useRef<boolean>(false);
+
+  // Address Search
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchingLocation, setSearchingLocation] = useState(false);
 
   // Zone Modal & Drawer State
   const [isZoneModalOpen, setIsZoneModalOpen] = useState(false);
@@ -121,13 +249,32 @@ export default function AdminPricingPage() {
   const [addonIsPerUnit, setAddonIsPerUnit] = useState(false);
   const [savingAddon, setSavingAddon] = useState(false);
 
+  const mapContainerRef = useRef<HTMLDivElement | null>(null);
   const mapSvgRef = useRef<SVGSVGElement | null>(null);
+
+  // Map Container Dynamic Size
+  const [canvasSize, setCanvasSize] = useState<{ width: number; height: number }>({ width: 1000, height: 650 });
 
   useEffect(() => {
     fetchPricingData();
   }, [selectedState]);
 
-  // Adjust map center when filter changes
+  // Track map container size
+  useEffect(() => {
+    const updateSize = () => {
+      if (mapContainerRef.current) {
+        const rect = mapContainerRef.current.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          setCanvasSize({ width: Math.round(rect.width), height: Math.round(rect.height) });
+        }
+      }
+    };
+    updateSize();
+    window.addEventListener("resize", updateSize);
+    return () => window.removeEventListener("resize", updateSize);
+  }, [activeTab]);
+
+  // Adjust map center when filter tab changes
   useEffect(() => {
     if (selectedState !== "ALL" && REGIONAL_VIEWPORTS[selectedState]) {
       setMapCenter({
@@ -137,6 +284,40 @@ export default function AdminPricingPage() {
       setZoomLevel(REGIONAL_VIEWPORTS[selectedState].zoom);
     }
   }, [selectedState]);
+
+  // Keyboard Shortcuts (Space to pan, Enter to complete, Ctrl+Z to undo, Esc to cancel)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.code === "Space" && !isSpacePressedRef.current && (e.target as HTMLElement)?.tagName !== "INPUT") {
+        isSpacePressedRef.current = true;
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z" && isDrawing) {
+        e.preventDefault();
+        setDraftNodes((prev) => prev.slice(0, -1));
+      }
+      if (e.key === "Enter" && isDrawing && draftNodes.length >= 3) {
+        e.preventDefault();
+        handleCompleteDrawing();
+      }
+      if (e.key === "Escape" && isDrawing) {
+        e.preventDefault();
+        handleCancelDrawing();
+      }
+    };
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "Space") {
+        isSpacePressedRef.current = false;
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("keyup", handleKeyUp);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keyup", handleKeyUp);
+    };
+  }, [isDrawing, draftNodes]);
 
   const fetchPricingData = async () => {
     try {
@@ -179,59 +360,195 @@ export default function AdminPricingPage() {
     }
   };
 
-  // Convert Lon/Lat coordinate to SVG Pixel coordinate in Map Canvas
-  const coordToPixel = (lon: number, lat: number, width: number, height: number) => {
-    // Mercator approximation scaled to zoom
-    const latRad = (lat * Math.PI) / 180;
-    const centerLatRad = (mapCenter.lat * Math.PI) / 180;
+  /* =========================================================================
+     Mouse Wheel Zoom Centered on Cursor Position
+  ========================================================================= */
+  const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const container = mapContainerRef.current;
+    if (!container) return;
 
-    const scale = Math.pow(2, zoomLevel) * 120;
-    const x = width / 2 + (lon - mapCenter.lon) * (scale / 360) * Math.cos(centerLatRad);
-    const y = height / 2 - (lat - mapCenter.lat) * (scale / 360);
+    const rect = container.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
 
-    return { x, y };
+    // Get current lon/lat under cursor
+    const mouseCoord = pixelToCoord(
+      mouseX,
+      mouseY,
+      mapCenter.lon,
+      mapCenter.lat,
+      zoomLevel,
+      canvasSize.width,
+      canvasSize.height
+    );
+
+    const delta = e.deltaY < 0 ? 0.5 : -0.5;
+    const nextZoom = Math.max(4, Math.min(19, zoomLevel + delta));
+
+    if (nextZoom === zoomLevel) return;
+
+    // Compute new center to keep mouseCoord under same mouseX, mouseY
+    const scale = 256 * Math.pow(2, nextZoom);
+    const targetWorld = lonLatToWorld(mouseCoord.lon, mouseCoord.lat);
+    const newCenterWorldX = targetWorld.x - (mouseX - canvasSize.width / 2) / scale;
+    const newCenterWorldY = targetWorld.y - (mouseY - canvasSize.height / 2) / scale;
+    const newCenter = worldToLonLat(newCenterWorldX, newCenterWorldY);
+
+    setZoomLevel(nextZoom);
+    setMapCenter(newCenter);
   };
 
-  // Convert SVG Pixel coordinate back to Lon/Lat coordinate
-  const pixelToCoord = (x: number, y: number, width: number, height: number) => {
-    const centerLatRad = (mapCenter.lat * Math.PI) / 180;
-    const scale = Math.pow(2, zoomLevel) * 120;
+  /* =========================================================================
+     Mouse Navigation & Drawing Handlers
+  ========================================================================= */
 
-    const lon = mapCenter.lon + ((x - width / 2) / (scale / 360)) / Math.cos(centerLatRad);
-    const lat = mapCenter.lat - ((y - height / 2) / (scale / 360));
+  const handleMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    // Middle click (button 1) or Right click (button 2) or Spacebar held or PAN mode
+    if (e.button === 1 || e.button === 2 || isSpacePressedRef.current || mapMode === "PAN" || !isDrawing) {
+      e.preventDefault();
+      setIsPanning(true);
+      panStartRef.current = {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        centerWorld: lonLatToWorld(mapCenter.lon, mapCenter.lat),
+      };
+      return;
+    }
+  };
 
-    return { lon: Math.round(lon * 100000) / 100000, lat: Math.round(lat * 100000) / 100000 };
+  const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const container = mapContainerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    // Panning execution
+    if (isPanning && panStartRef.current) {
+      const dx = e.clientX - panStartRef.current.clientX;
+      const dy = e.clientY - panStartRef.current.clientY;
+      const scale = 256 * Math.pow(2, zoomLevel);
+
+      const newWorldX = panStartRef.current.centerWorld.x - dx / scale;
+      const newWorldY = panStartRef.current.centerWorld.y - dy / scale;
+      const newCenter = worldToLonLat(newWorldX, newWorldY);
+      setMapCenter(newCenter);
+      return;
+    }
+
+    // Node dragging execution
+    if (draggingNodeIndex !== null && isDrawing) {
+      const coord = pixelToCoord(x, y, mapCenter.lon, mapCenter.lat, zoomLevel, canvasSize.width, canvasSize.height);
+      setDraftNodes((prev) => {
+        const copy = [...prev];
+        copy[draggingNodeIndex] = [coord.lon, coord.lat];
+        return copy;
+      });
+      setCursorCoord(coord);
+      setCursorScreenPos({ x, y });
+      return;
+    }
+
+    const coord = pixelToCoord(x, y, mapCenter.lon, mapCenter.lat, zoomLevel, canvasSize.width, canvasSize.height);
+    setCursorCoord(coord);
+    setCursorScreenPos({ x, y });
+
+    // Snapping detection: Check if cursor is near the first node to close polygon
+    if (isDrawing && draftNodes.length >= 2) {
+      const startPixel = coordToPixel(
+        draftNodes[0][0],
+        draftNodes[0][1],
+        mapCenter.lon,
+        mapCenter.lat,
+        zoomLevel,
+        canvasSize.width,
+        canvasSize.height
+      );
+      const dist = Math.hypot(startPixel.x - x, startPixel.y - y);
+      setIsSnappedToStart(dist <= 16);
+    } else {
+      setIsSnappedToStart(false);
+    }
+  };
+
+  const handleMouseUp = () => {
+    setIsPanning(false);
+    panStartRef.current = null;
+    setDraggingNodeIndex(null);
   };
 
   const handleMapClick = (e: React.MouseEvent<SVGSVGElement>) => {
+    // If was panning, don't place node
+    if (isPanning) return;
     if (!isDrawing) return;
-    const svg = mapSvgRef.current;
-    if (!svg) return;
 
-    const rect = svg.getBoundingClientRect();
+    // If snapped to start node, auto-close and finish
+    if (isSnappedToStart && draftNodes.length >= 3) {
+      handleCompleteDrawing();
+      return;
+    }
+
+    // If clicking on an existing node, don't add duplicate
+    if (hoveredNodeIndex !== null) return;
+
+    const container = mapContainerRef.current;
+    if (!container) return;
+
+    const rect = container.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    const coord = pixelToCoord(x, y, rect.width, rect.height);
+    const coord = pixelToCoord(x, y, mapCenter.lon, mapCenter.lat, zoomLevel, canvasSize.width, canvasSize.height);
     setDraftNodes((prev) => [...prev, [coord.lon, coord.lat]]);
-  };
-
-  const handleMouseMove = (e: React.MouseEvent<SVGSVGElement>) => {
-    const svg = mapSvgRef.current;
-    if (!svg) return;
-
-    const rect = svg.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const coord = pixelToCoord(x, y, rect.width, rect.height);
-    setCursorCoord(coord);
   };
 
   const handleStartDrawing = () => {
     setIsDrawing(true);
+    setMapMode("DRAW");
     setDraftNodes([]);
     setStatusMessage({
-      text: "Click on the map to place boundary points. Click 'Complete & Save Zone' when finished.",
+      text: "Drawing Mode Active: Click to place nodes with precision. Hover near first point to snap and close.",
+    });
+  };
+
+  const handleEditZoneGeometry = (zone: PricingZoneItem) => {
+    if (!zone.geometry) return;
+    let coords: Array<[number, number]> = [];
+    if (zone.geometry.type === "Polygon" && Array.isArray(zone.geometry.coordinates)) {
+      coords = zone.geometry.coordinates[0] || [];
+    } else if (zone.geometry.type === "MultiPolygon" && Array.isArray(zone.geometry.coordinates)) {
+      coords = zone.geometry.coordinates[0]?.[0] || [];
+    }
+    // Remove closing duplicate if present
+    if (coords.length > 1 && coords[0][0] === coords[coords.length - 1][0] && coords[0][1] === coords[coords.length - 1][1]) {
+      coords = coords.slice(0, -1);
+    }
+    setDraftNodes(coords);
+    setIsDrawing(true);
+    setMapMode("DRAW");
+    setEditingZone(zone);
+    setZoneName(zone.name);
+    setZoneState(zone.state);
+    setZoneDesc(zone.description || "");
+    setZoneColor(zone.color || "#3b82f6");
+    setZonePriority(String(zone.priority ?? 20));
+    setZoneQuoteOnly(zone.quoteOnly);
+    setZoneOutOfArea(zone.outOfArea);
+    setZoneBasePrice(zone.basePrice !== null ? String(zone.basePrice) : "");
+    setZoneBands(zone.bands.map((b) => ({ maxAcres: b.maxAcres, price: b.price })));
+
+    // Zoom into the zone's center
+    if (coords.length > 0) {
+      const avgLon = coords.reduce((acc, c) => acc + c[0], 0) / coords.length;
+      const avgLat = coords.reduce((acc, c) => acc + c[1], 0) / coords.length;
+      setMapCenter({ lon: avgLon, lat: avgLat });
+      setZoomLevel(12);
+    }
+
+    setStatusMessage({
+      text: `Editing boundaries for ${zone.name}. Drag vertices to adjust, click map to add nodes, or Complete when done.`,
     });
   };
 
@@ -249,24 +566,24 @@ export default function AdminPricingPage() {
     };
 
     setIsDrawing(false);
-    setDraftNodes([]);
-
-    // Open zone creation form pre-filled with drawn geometry
-    setEditingZone(null);
-    setZoneName(`New Zone ${zones.length + 1}`);
-    setZoneState(selectedState === "ALL" ? "NY" : selectedState);
-    setZoneDesc("Custom drawn geographic service polygon");
-    setZoneColor(COLOR_SWATCHES[zones.length % COLOR_SWATCHES.length].hex);
-    setZonePriority("25");
-    setZoneQuoteOnly(false);
-    setZoneOutOfArea(false);
-    setZoneBasePrice("");
-    setZoneBands([
-      { maxAcres: 1.0, price: 750 },
-      { maxAcres: 2.0, price: 1100 },
-      { maxAcres: 3.0, price: 1600 },
-    ]);
     (window as any).__tempDrawnGeometry = newGeometry;
+
+    if (!editingZone) {
+      // Open zone creation form pre-filled with drawn geometry
+      setZoneName(`New Zone ${zones.length + 1}`);
+      setZoneState(selectedState === "ALL" ? "NY" : selectedState);
+      setZoneDesc("Custom drawn geographic service polygon");
+      setZoneColor(COLOR_SWATCHES[zones.length % COLOR_SWATCHES.length].hex);
+      setZonePriority("25");
+      setZoneQuoteOnly(false);
+      setZoneOutOfArea(false);
+      setZoneBasePrice("");
+      setZoneBands([
+        { maxAcres: 1.0, price: 750 },
+        { maxAcres: 2.0, price: 1100 },
+        { maxAcres: 3.0, price: 1600 },
+      ]);
+    }
     setIsZoneModalOpen(true);
   };
 
@@ -274,6 +591,50 @@ export default function AdminPricingPage() {
     setIsDrawing(false);
     setDraftNodes([]);
     setStatusMessage(null);
+  };
+
+  // Search Address or Jump to Location
+  const handleLocationSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!searchQuery.trim()) return;
+
+    setSearchingLocation(true);
+    try {
+      // 1. Check if matches preset
+      const queryLower = searchQuery.toLowerCase();
+      for (const [key, preset] of Object.entries(REGIONAL_VIEWPORTS)) {
+        if (preset.name.toLowerCase().includes(queryLower) || key.toLowerCase() === queryLower) {
+          setMapCenter({ lat: preset.lat, lon: preset.lon });
+          setZoomLevel(preset.zoom);
+          setSearchingLocation(false);
+          return;
+        }
+      }
+
+      // 2. OpenStreetMap Nominatim Geocoding
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(
+          searchQuery.trim()
+        )}&countrycodes=us&limit=1`
+      );
+      if (res.ok) {
+        const results = await res.json();
+        if (results && results.length > 0) {
+          const lat = parseFloat(results[0].lat);
+          const lon = parseFloat(results[0].lon);
+          setMapCenter({ lat, lon });
+          setZoomLevel(14);
+          setStatusMessage({ text: `Centered map on: ${results[0].display_name}` });
+          return;
+        }
+      }
+      setStatusMessage({ text: `Location "${searchQuery}" not found. Try a city, state, or county name.`, isError: true });
+    } catch (err: any) {
+      console.warn("Geocoding failed:", err);
+      setStatusMessage({ text: "Could not locate address. Try specifying state/zip code.", isError: true });
+    } finally {
+      setSearchingLocation(false);
+    }
   };
 
   // Open Zone Form
@@ -288,9 +649,7 @@ export default function AdminPricingPage() {
       setZoneQuoteOnly(zone.quoteOnly);
       setZoneOutOfArea(zone.outOfArea);
       setZoneBasePrice(zone.basePrice !== null ? String(zone.basePrice) : "");
-      setZoneBands(
-        zone.bands.map((b) => ({ maxAcres: b.maxAcres, price: b.price }))
-      );
+      setZoneBands(zone.bands.map((b) => ({ maxAcres: b.maxAcres, price: b.price })));
       (window as any).__tempDrawnGeometry = zone.geometry;
     } else {
       setEditingZone(null);
@@ -349,7 +708,8 @@ export default function AdminPricingPage() {
 
       setIsZoneModalOpen(false);
       setSelectedZoneOnMap(null);
-      setStatusMessage({ text: `Zone ${zoneName} saved successfully with map geometry.` });
+      setDraftNodes([]);
+      setStatusMessage({ text: `Zone "${zoneName}" saved successfully with precision map geometry.` });
       fetchPricingData();
     } catch (err: any) {
       setStatusMessage({ text: err.message, isError: true });
@@ -444,11 +804,85 @@ export default function AdminPricingPage() {
     }
   };
 
-  // Render GeoJSON Polygons in SVG
-  const renderPolygons = useMemo(() => {
-    const width = 1000;
-    const height = 650;
+  /* =========================================================================
+     Slippy Tile Grid Generator for High-Res Satellite and Street Views
+  ========================================================================= */
+  const slippyTiles = useMemo(() => {
+    const z = Math.max(1, Math.min(19, Math.floor(zoomLevel)));
+    const scale = 256 * Math.pow(2, zoomLevel);
+    const centerWorld = lonLatToWorld(mapCenter.lon, mapCenter.lat);
 
+    // Bounding world coordinates of visible viewport
+    const minWorldX = centerWorld.x - canvasSize.width / 2 / scale;
+    const maxWorldX = centerWorld.x + canvasSize.width / 2 / scale;
+    const minWorldY = centerWorld.y - canvasSize.height / 2 / scale;
+    const maxWorldY = centerWorld.y + canvasSize.height / 2 / scale;
+
+    const numTiles = Math.pow(2, z);
+    const minTileX = Math.max(0, Math.floor(minWorldX * numTiles) - 1);
+    const maxTileX = Math.min(numTiles - 1, Math.floor(maxWorldX * numTiles) + 1);
+    const minTileY = Math.max(0, Math.floor(minWorldY * numTiles) - 1);
+    const maxTileY = Math.min(numTiles - 1, Math.floor(maxWorldY * numTiles) + 1);
+
+    const tileList: Array<{
+      key: string;
+      x: number;
+      y: number;
+      z: number;
+      left: number;
+      top: number;
+      width: number;
+      height: number;
+      src: string;
+      labelSrc?: string;
+    }> = [];
+
+    const tileSize = 256 * Math.pow(2, zoomLevel - z);
+
+    for (let tx = minTileX; tx <= maxTileX; tx++) {
+      for (let ty = minTileY; ty <= maxTileY; ty++) {
+        const tileWorldX = tx / numTiles;
+        const tileWorldY = ty / numTiles;
+
+        const left = canvasSize.width / 2 + (tileWorldX - centerWorld.x) * scale;
+        const top = canvasSize.height / 2 + (tileWorldY - centerWorld.y) * scale;
+
+        let src = "";
+        let labelSrc: string | undefined;
+
+        if (mapType === "SATELLITE" || mapType === "HYBRID") {
+          src = `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${ty}/${tx}`;
+          if (mapType === "HYBRID") {
+            labelSrc = `https://services.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/${z}/${ty}/${tx}`;
+          }
+        } else if (mapType === "STREET") {
+          src = `https://services.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/${z}/${ty}/${tx}`;
+        } else if (mapType === "TOPO") {
+          src = `https://services.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/${z}/${ty}/${tx}`;
+        }
+
+        tileList.push({
+          key: `${z}-${tx}-${ty}`,
+          x: tx,
+          y: ty,
+          z,
+          left,
+          top,
+          width: tileSize,
+          height: tileSize,
+          src,
+          labelSrc,
+        });
+      }
+    }
+
+    return tileList;
+  }, [mapCenter, zoomLevel, mapType, canvasSize]);
+
+  /* =========================================================================
+     Render Saved GeoJSON Polygons in SVG
+  ========================================================================= */
+  const renderPolygons = useMemo(() => {
     return zones.map((zone) => {
       if (!zone.geometry) return null;
       let rings: number[][][] = [];
@@ -467,7 +901,15 @@ export default function AdminPricingPage() {
         if (!ring || ring.length < 3) return null;
         const pointsStr = ring
           .map((pt) => {
-            const { x, y } = coordToPixel(pt[0], pt[1], width, height);
+            const { x, y } = coordToPixel(
+              pt[0],
+              pt[1],
+              mapCenter.lon,
+              mapCenter.lat,
+              zoomLevel,
+              canvasSize.width,
+              canvasSize.height
+            );
             return `${x},${y}`;
           })
           .join(" ");
@@ -479,24 +921,57 @@ export default function AdminPricingPage() {
               fill={color}
               fillOpacity={isSelected ? 0.45 : isHovered ? 0.35 : 0.22}
               stroke={color}
-              strokeWidth={isSelected ? 3 : isHovered ? 2.5 : 1.5}
+              strokeWidth={isSelected ? 3.5 : isHovered ? 2.5 : 1.5}
               strokeDasharray={zone.quoteOnly ? "4,3" : undefined}
               className="cursor-pointer transition-all duration-200 hover:brightness-110"
               onMouseEnter={() => setHoveredZoneId(zone.id)}
               onMouseLeave={() => setHoveredZoneId(null)}
-              onClick={() => setSelectedZoneOnMap(zone)}
+              onClick={(e) => {
+                e.stopPropagation();
+                setSelectedZoneOnMap(zone);
+              }}
             />
           </g>
         );
       });
     });
-  }, [zones, mapCenter, zoomLevel, hoveredZoneId, selectedZoneOnMap]);
+  }, [zones, mapCenter, zoomLevel, hoveredZoneId, selectedZoneOnMap, canvasSize]);
+
+  // Live draft polygon statistics
+  const draftStats = useMemo(() => {
+    if (draftNodes.length === 0) return null;
+    let perimeterFeet = 0;
+    for (let i = 0; i < draftNodes.length - 1; i++) {
+      perimeterFeet += getDistanceFeet(
+        draftNodes[i][0],
+        draftNodes[i][1],
+        draftNodes[i + 1][0],
+        draftNodes[i + 1][1]
+      );
+    }
+    const areaAcres = getPolygonAreaAcres(draftNodes);
+    return {
+      nodesCount: draftNodes.length,
+      perimeterFeet,
+      perimeterMiles: (perimeterFeet / 5280).toFixed(2),
+      areaAcres,
+    };
+  }, [draftNodes]);
+
+  // Zoom Description Label
+  const getZoomDescription = (z: number) => {
+    if (z >= 17) return "Parcel / Boundary Level (High Precision)";
+    if (z >= 14) return "Street / Neighborhood Level";
+    if (z >= 11) return "Town / Township Level";
+    if (z >= 8) return "County / Regional Level";
+    return "State / Continental View";
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-6 sm:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-7xl mx-auto space-y-5">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
           <div className="space-y-1">
             <Link
               href="/admin"
@@ -510,7 +985,7 @@ export default function AdminPricingPage() {
               Dynamic Pricing Engine & Map Zone Matrix
             </h1>
             <p className="text-xs text-slate-600 dark:text-slate-400">
-              Draw interactive geographic service polygons on the live map, configure acreage tiers, and manage fee add-ons.
+              Draw and configure high-precision geographic service polygons, acreage rate bands, and automatic territory add-ons.
             </p>
           </div>
 
@@ -567,7 +1042,7 @@ export default function AdminPricingPage() {
         {/* Status Message */}
         {statusMessage && (
           <div
-            className={`p-3 rounded-lg text-xs font-medium flex items-center justify-between ${
+            className={`p-3 rounded-lg text-xs font-medium flex items-center justify-between animate-in fade-in duration-200 ${
               statusMessage.isError
                 ? "bg-red-50 text-red-700 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-800"
                 : "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
@@ -584,7 +1059,7 @@ export default function AdminPricingPage() {
             <button
               type="button"
               onClick={() => setStatusMessage(null)}
-              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+              className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 ml-2"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -604,133 +1079,210 @@ export default function AdminPricingPage() {
                     : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800"
                 }`}
               >
-                {st === "ALL" ? "All Territories" : st === "NY" ? "New York (NY)" : st === "NC" ? "North Carolina (NC)" : "Florida (FL)"}
+                {st === "ALL"
+                  ? "All Territories"
+                  : st === "NY"
+                  ? "New York (NY)"
+                  : st === "NC"
+                  ? "North Carolina (NC)"
+                  : "Florida (FL)"}
               </button>
             ))}
           </div>
 
           {activeTab === "MAP" && (
-            <div className="flex items-center space-x-2">
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">Map Focus:</span>
-              <button
-                type="button"
-                onClick={() => {
-                  setMapCenter({ lat: 40.85, lon: -73.2 });
-                  setZoomLevel(9);
-                }}
-                className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100"
-              >
-                Long Island / NY
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setMapCenter({ lat: 35.75, lon: -78.6 });
-                  setZoomLevel(8);
-                }}
-                className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded text-[11px] font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100"
-              >
-                Raleigh / Clayton (NC)
-              </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Quick Jump Presets */}
+              <div className="flex items-center space-x-1">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 hidden sm:inline">
+                  Quick Focus:
+                </span>
+                <select
+                  value=""
+                  onChange={(e) => {
+                    const preset = REGIONAL_VIEWPORTS[e.target.value];
+                    if (preset) {
+                      setMapCenter({ lat: preset.lat, lon: preset.lon });
+                      setZoomLevel(preset.zoom);
+                    }
+                  }}
+                  className="px-2.5 py-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[11px] font-semibold text-slate-700 dark:text-slate-300"
+                >
+                  <option value="" disabled>
+                    -- Select Territory Focus --
+                  </option>
+                  <option value="LI_WEST">Nassau County (NY)</option>
+                  <option value="LI_EAST">Suffolk County (NY)</option>
+                  <option value="RALEIGH">Raleigh Metro (NC)</option>
+                  <option value="CLAYTON">Clayton / Johnston (NC)</option>
+                  <option value="ORLANDO">Orlando Metro (FL)</option>
+                </select>
+              </div>
+
+              {/* Location Search Bar */}
+              <form onSubmit={handleLocationSearch} className="flex items-center">
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search address, town, or zip..."
+                    className="w-48 sm:w-64 pl-7 pr-7 py-1 text-[11px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2" />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery("")}
+                      className="absolute right-2 top-2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                <button
+                  type="submit"
+                  disabled={searchingLocation}
+                  className="ml-1 px-2.5 py-1 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-lg text-[11px] font-semibold transition"
+                >
+                  {searchingLocation ? <Loader2 className="w-3 h-3 animate-spin" /> : "Go"}
+                </button>
+              </form>
             </div>
           )}
         </div>
 
         {/* TAB 1: INTERACTIVE MAP DRAWING WORKSPACE */}
         {activeTab === "MAP" && (
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-5">
             {/* Map Canvas - 3 Columns */}
-            <div className="lg:col-span-3 space-y-3">
+            <div className="lg:col-span-3 space-y-2">
               {/* Map Toolbar */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-3 shadow-sm flex flex-wrap items-center justify-between gap-3">
-                <div className="flex items-center space-x-2">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-2.5 shadow-sm flex flex-wrap items-center justify-between gap-2.5">
+                <div className="flex flex-wrap items-center gap-2">
                   {!isDrawing ? (
                     <button
                       type="button"
                       onClick={handleStartDrawing}
-                      className="inline-flex items-center px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition"
+                      className="inline-flex items-center px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-lg shadow transition"
                     >
-                      <Plus className="w-4 h-4 mr-1.5" />
+                      <Plus className="w-3.5 h-3.5 mr-1.5" />
                       Draw New Polygon Zone
                     </button>
                   ) : (
-                    <div className="flex items-center space-x-2">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <button
                         type="button"
                         onClick={handleCompleteDrawing}
-                        className="inline-flex items-center px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg shadow animate-pulse"
+                        disabled={draftNodes.length < 3}
+                        className="inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-lg shadow animate-pulse"
                       >
-                        <Check className="w-4 h-4 mr-1.5" />
-                        Complete & Save Zone ({draftNodes.length} pts)
+                        <Check className="w-3.5 h-3.5 mr-1" />
+                        Complete Zone ({draftNodes.length} pts)
                       </button>
                       <button
                         type="button"
                         onClick={() => setDraftNodes(draftNodes.slice(0, -1))}
                         disabled={draftNodes.length === 0}
-                        className="inline-flex items-center px-3 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg disabled:opacity-50"
+                        className="inline-flex items-center px-2.5 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg disabled:opacity-50"
+                        title="Undo last node (Ctrl+Z)"
                       >
-                        <RotateCcw className="w-3.5 h-3.5 mr-1" />
-                        Undo Node
+                        <RotateCcw className="w-3 h-3 mr-1" />
+                        Undo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDraftNodes([])}
+                        disabled={draftNodes.length === 0}
+                        className="inline-flex items-center px-2 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 text-xs font-semibold rounded-lg disabled:opacity-50"
+                        title="Clear all points"
+                      >
+                        Clear
                       </button>
                       <button
                         type="button"
                         onClick={handleCancelDrawing}
-                        className="inline-flex items-center px-3 py-2 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 text-xs font-semibold rounded-lg border border-rose-200 dark:border-rose-800"
+                        className="inline-flex items-center px-2.5 py-1.5 bg-rose-50 dark:bg-rose-950/60 text-rose-700 dark:text-rose-300 hover:bg-rose-100 text-xs font-semibold rounded-lg border border-rose-200 dark:border-rose-800"
                       >
-                        <X className="w-3.5 h-3.5 mr-1" />
+                        <X className="w-3 h-3 mr-1" />
                         Cancel
                       </button>
                     </div>
                   )}
 
-                  <div className="h-6 w-px bg-slate-200 dark:bg-slate-800 mx-1" />
+                  <div className="h-5 w-px bg-slate-200 dark:bg-slate-800 mx-0.5" />
+
+                  {/* Mode Selector (Draw vs Pan) */}
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 text-[11px] font-semibold">
+                    <button
+                      type="button"
+                      onClick={() => setMapMode("DRAW")}
+                      className={`px-2 py-1 rounded flex items-center ${
+                        mapMode === "DRAW"
+                          ? "bg-white dark:bg-slate-900 text-blue-600 shadow-xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                      title="Draw Mode: Click to add polygon nodes"
+                    >
+                      <Crosshair className="w-3 h-3 mr-1" />
+                      Draw
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapMode("PAN")}
+                      className={`px-2 py-1 rounded flex items-center ${
+                        mapMode === "PAN"
+                          ? "bg-white dark:bg-slate-900 text-blue-600 shadow-xs"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                      title="Pan Mode: Click and drag to move map"
+                    >
+                      <Move className="w-3 h-3 mr-1" />
+                      Pan
+                    </button>
+                  </div>
 
                   {/* Layer Tile Mode */}
-                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded p-0.5 text-[11px] font-semibold">
-                    <button
-                      type="button"
-                      onClick={() => setMapType("SATELLITE")}
-                      className={`px-2 py-1 rounded ${
-                        mapType === "SATELLITE" ? "bg-white dark:bg-slate-900 text-blue-600 shadow-xs" : "text-slate-500"
-                      }`}
-                    >
-                      Satellite
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMapType("STREET")}
-                      className={`px-2 py-1 rounded ${
-                        mapType === "STREET" ? "bg-white dark:bg-slate-900 text-blue-600 shadow-xs" : "text-slate-500"
-                      }`}
-                    >
-                      Streets
-                    </button>
+                  <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-0.5 text-[11px] font-semibold">
+                    {(["HYBRID", "SATELLITE", "STREET", "TOPO"] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setMapType(type)}
+                        className={`px-2 py-1 rounded capitalize ${
+                          mapType === type
+                            ? "bg-white dark:bg-slate-900 text-blue-600 shadow-xs"
+                            : "text-slate-500 hover:text-slate-900"
+                        }`}
+                      >
+                        {type.toLowerCase()}
+                      </button>
+                    ))}
                   </div>
                 </div>
 
-                {/* Coordinates Tracker */}
-                <div className="flex items-center space-x-3 text-xs text-slate-500 dark:text-slate-400 font-mono">
-                  {cursorCoord && (
-                    <span>
-                      Lat: {cursorCoord.lat.toFixed(4)}, Lon: {cursorCoord.lon.toFixed(4)}
-                    </span>
-                  )}
+                {/* Zoom Controls & Level Indicator */}
+                <div className="flex items-center space-x-2">
+                  <div className="text-[11px] font-mono font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded-md">
+                    z{zoomLevel.toFixed(1)}
+                  </div>
+
                   <div className="flex items-center space-x-1">
                     <button
                       type="button"
-                      onClick={() => setZoomLevel((z) => Math.min(13, z + 1))}
-                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold"
-                      title="Zoom In"
+                      onClick={() => setZoomLevel((z) => Math.min(19, z + 1))}
+                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-sm shadow-xs transition"
+                      title="Zoom In (Scroll up or click)"
                     >
-                      +
+                      <ZoomIn className="w-3.5 h-3.5" />
                     </button>
                     <button
                       type="button"
-                      onClick={() => setZoomLevel((z) => Math.max(5, z - 1))}
-                      className="w-6 h-6 rounded bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold"
-                      title="Zoom Out"
+                      onClick={() => setZoomLevel((z) => Math.max(4, z - 1))}
+                      className="w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 flex items-center justify-center font-bold text-sm shadow-xs transition"
+                      title="Zoom Out (Scroll down or click)"
                     >
-                      -
+                      <ZoomOut className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -738,41 +1290,131 @@ export default function AdminPricingPage() {
 
               {/* Map Canvas Frame */}
               <div
-                className={`relative w-full h-[650px] bg-slate-900 rounded-xl overflow-hidden border border-slate-300 dark:border-slate-800 shadow-inner select-none ${
-                  isDrawing ? "cursor-crosshair" : "cursor-grab"
+                ref={mapContainerRef}
+                onWheel={handleWheel}
+                onMouseDown={handleMouseDown}
+                onMouseMove={handleMouseMove}
+                onMouseUp={handleMouseUp}
+                onMouseLeave={handleMouseUp}
+                onContextMenu={(e) => e.preventDefault()}
+                className={`relative w-full h-[660px] bg-slate-900 rounded-xl overflow-hidden border border-slate-300 dark:border-slate-800 shadow-inner select-none ${
+                  isPanning
+                    ? "cursor-grabbing"
+                    : mapMode === "PAN"
+                    ? "cursor-grab"
+                    : isDrawing
+                    ? isSnappedToStart
+                      ? "cursor-pointer"
+                      : "cursor-crosshair"
+                    : "cursor-default"
                 }`}
               >
-                {/* Background Map Imagery / Tile Emulation */}
-                <div
-                  className="absolute inset-0 opacity-40 bg-cover bg-center pointer-events-none"
-                  style={{
-                    backgroundImage:
-                      mapType === "SATELLITE"
-                        ? `url('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/export?bbox=${mapCenter.lon - 1.5},${mapCenter.lat - 1.0},${mapCenter.lon + 1.5},${mapCenter.lat + 1.0}&bboxSR=4326&size=1000,650&format=png&f=image')`
-                        : undefined,
-                    backgroundColor: mapType === "STREET" ? "#1e293b" : "#0f172a",
-                  }}
-                />
+                {/* 1. Slippy Tile Layer: High-Res Satellite / Streets */}
+                <div className="absolute inset-0 pointer-events-none overflow-hidden">
+                  {slippyTiles.map((tile) => (
+                    <div
+                      key={tile.key}
+                      className="absolute"
+                      style={{
+                        left: `${tile.left}px`,
+                        top: `${tile.top}px`,
+                        width: `${tile.width}px`,
+                        height: `${tile.height}px`,
+                      }}
+                    >
+                      <img
+                        src={tile.src}
+                        alt=""
+                        className="w-full h-full object-cover select-none"
+                        loading="eager"
+                        crossOrigin="anonymous"
+                      />
+                      {tile.labelSrc && (
+                        <img
+                          src={tile.labelSrc}
+                          alt=""
+                          className="absolute inset-0 w-full h-full object-cover select-none opacity-90"
+                          loading="eager"
+                          crossOrigin="anonymous"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
 
-                {/* SVG Layer for Polygons & Drawing */}
+                {/* 2. SVG Layer for Polygons, Draft Nodes & Precision Crosshairs */}
                 <svg
                   ref={mapSvgRef}
-                  viewBox="0 0 1000 650"
-                  className="absolute inset-0 w-full h-full"
+                  viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+                  className="absolute inset-0 w-full h-full z-10"
                   onClick={handleMapClick}
-                  onMouseMove={handleMouseMove}
                 >
+                  {/* Precision Crosshair Lines in Drawing Mode */}
+                  {isDrawing && cursorScreenPos && !isPanning && (
+                    <g className="pointer-events-none opacity-40">
+                      <line
+                        x1={0}
+                        y1={cursorScreenPos.y}
+                        x2={canvasSize.width}
+                        y2={cursorScreenPos.y}
+                        stroke="#38bdf8"
+                        strokeWidth="1"
+                        strokeDasharray="3,3"
+                      />
+                      <line
+                        x1={cursorScreenPos.x}
+                        y1={0}
+                        x2={cursorScreenPos.x}
+                        y2={canvasSize.height}
+                        stroke="#38bdf8"
+                        strokeWidth="1"
+                        strokeDasharray="3,3"
+                      />
+                    </g>
+                  )}
+
                   {/* Render Saved Zone Polygons */}
                   {renderPolygons}
 
                   {/* Render Current Draft Polygon Nodes */}
                   {isDrawing && draftNodes.length > 0 && (
                     <g>
-                      {/* Connecting line between nodes */}
+                      {/* Polygon Filled Preview Area */}
+                      {draftNodes.length >= 3 && (
+                        <polygon
+                          points={draftNodes
+                            .map((pt) => {
+                              const { x, y } = coordToPixel(
+                                pt[0],
+                                pt[1],
+                                mapCenter.lon,
+                                mapCenter.lat,
+                                zoomLevel,
+                                canvasSize.width,
+                                canvasSize.height
+                              );
+                              return `${x},${y}`;
+                            })
+                            .join(" ")}
+                          fill="#10b981"
+                          fillOpacity="0.25"
+                          stroke="none"
+                        />
+                      )}
+
+                      {/* Connecting line between placed nodes */}
                       <polyline
                         points={draftNodes
                           .map((pt) => {
-                            const { x, y } = coordToPixel(pt[0], pt[1], 1000, 650);
+                            const { x, y } = coordToPixel(
+                              pt[0],
+                              pt[1],
+                              mapCenter.lon,
+                              mapCenter.lat,
+                              zoomLevel,
+                              canvasSize.width,
+                              canvasSize.height
+                            );
                             return `${x},${y}`;
                           })
                           .join(" ")}
@@ -781,44 +1423,179 @@ export default function AdminPricingPage() {
                         strokeWidth="2.5"
                         strokeDasharray="4,4"
                       />
-                      {/* Vertex circles */}
+
+                      {/* Live Rubber-Band Line to Current Mouse Cursor */}
+                      {cursorScreenPos && !isPanning && (
+                        <line
+                          x1={
+                            coordToPixel(
+                              draftNodes[draftNodes.length - 1][0],
+                              draftNodes[draftNodes.length - 1][1],
+                              mapCenter.lon,
+                              mapCenter.lat,
+                              zoomLevel,
+                              canvasSize.width,
+                              canvasSize.height
+                            ).x
+                          }
+                          y1={
+                            coordToPixel(
+                              draftNodes[draftNodes.length - 1][0],
+                              draftNodes[draftNodes.length - 1][1],
+                              mapCenter.lon,
+                              mapCenter.lat,
+                              zoomLevel,
+                              canvasSize.width,
+                              canvasSize.height
+                            ).y
+                          }
+                          x2={cursorScreenPos.x}
+                          y2={cursorScreenPos.y}
+                          stroke={isSnappedToStart ? "#22c55e" : "#38bdf8"}
+                          strokeWidth="2"
+                          strokeDasharray="2,2"
+                        />
+                      )}
+
+                      {/* Vertex Handles & Index Numbers */}
                       {draftNodes.map((pt, idx) => {
-                        const { x, y } = coordToPixel(pt[0], pt[1], 1000, 650);
+                        const { x, y } = coordToPixel(
+                          pt[0],
+                          pt[1],
+                          mapCenter.lon,
+                          mapCenter.lat,
+                          zoomLevel,
+                          canvasSize.width,
+                          canvasSize.height
+                        );
+                        const isStart = idx === 0;
+                        const isHovered = hoveredNodeIndex === idx;
+
                         return (
-                          <circle
+                          <g
                             key={idx}
-                            cx={x}
-                            cy={y}
-                            r={idx === 0 ? "6" : "4.5"}
-                            fill={idx === 0 ? "#10b981" : "#ffffff"}
-                            stroke="#10b981"
-                            strokeWidth="2"
-                          />
+                            onMouseEnter={() => setHoveredNodeIndex(idx)}
+                            onMouseLeave={() => setHoveredNodeIndex(null)}
+                            onMouseDown={(e) => {
+                              e.stopPropagation();
+                              setDraggingNodeIndex(idx);
+                            }}
+                            className="cursor-move"
+                          >
+                            {/* Snap Target Pulse on Starting Node */}
+                            {isStart && isSnappedToStart && (
+                              <circle
+                                cx={x}
+                                cy={y}
+                                r="14"
+                                fill="#22c55e"
+                                fillOpacity="0.4"
+                                className="animate-ping"
+                              />
+                            )}
+
+                            {/* Node Handle Circle */}
+                            <circle
+                              cx={x}
+                              cy={y}
+                              r={isStart ? (isSnappedToStart ? "8" : "7") : isHovered ? "6" : "4.5"}
+                              fill={isStart ? "#10b981" : isHovered ? "#38bdf8" : "#ffffff"}
+                              stroke={isStart ? "#ffffff" : "#10b981"}
+                              strokeWidth={isHovered ? "2.5" : "2"}
+                              className="transition-all"
+                            />
+
+                            {/* Node Index Badge */}
+                            <text
+                              x={x + 9}
+                              y={y - 7}
+                              fill="#ffffff"
+                              fontSize="10"
+                              fontWeight="bold"
+                              fontFamily="monospace"
+                              stroke="#000000"
+                              strokeWidth="2.5"
+                              paintOrder="stroke"
+                              className="pointer-events-none select-none"
+                            >
+                              #{idx + 1}
+                            </text>
+                          </g>
                         );
                       })}
                     </g>
                   )}
                 </svg>
 
-                {/* Drawing Helper Overlay */}
+                {/* Drawing & Accuracy Overlay Bar */}
                 {isDrawing && (
-                  <div className="absolute top-4 left-4 bg-slate-900/90 backdrop-blur-xs text-white p-3 rounded-lg border border-emerald-500/80 shadow-lg text-xs space-y-1 max-w-xs pointer-events-none">
-                    <div className="flex items-center space-x-1.5 font-bold text-emerald-400">
-                      <Crosshair className="w-4 h-4 animate-spin" />
-                      <span>Drawing Polygon Mode Active</span>
+                  <div className="absolute top-3 left-3 bg-slate-900/90 backdrop-blur-md text-white p-3 rounded-xl border border-emerald-500/80 shadow-2xl text-xs space-y-2 max-w-sm pointer-events-none z-20">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-1.5 font-bold text-emerald-400">
+                        <Crosshair className="w-4 h-4 animate-spin" />
+                        <span>Precision Polygon Editor</span>
+                      </div>
+                      <span className="text-[10px] font-mono px-1.5 py-0.5 bg-emerald-950 text-emerald-300 rounded border border-emerald-700">
+                        {draftNodes.length} Nodes
+                      </span>
                     </div>
-                    <p className="text-[11px] text-slate-300">
-                      Click anywhere on the map to place boundary pins ({draftNodes.length} nodes added).
-                    </p>
+
+                    {isSnappedToStart ? (
+                      <div className="p-1.5 bg-emerald-500/20 text-emerald-300 rounded border border-emerald-500/50 font-bold text-[11px] animate-pulse">
+                        🎯 Snapped to Start Pin! Click now to close & save polygon.
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-slate-300 leading-relaxed">
+                        Click on the map to place boundary pins. Scroll wheel to zoom in to parcel level. Drag any vertex to reposition.
+                      </p>
+                    )}
+
+                    {draftStats && draftStats.nodesCount >= 2 && (
+                      <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-800 text-[11px] font-mono">
+                        <div>
+                          <span className="text-slate-400 block text-[9px] uppercase">Perimeter</span>
+                          <span className="font-bold text-slate-100">
+                            {draftStats.perimeterFeet.toLocaleString()} ft ({draftStats.perimeterMiles} mi)
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-slate-400 block text-[9px] uppercase">Approx Area</span>
+                          <span className="font-bold text-emerald-400">
+                            {draftStats.areaAcres.toLocaleString()} Acres
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
+
+                {/* Coordinate Tracker & Scale Badge (Bottom Left) */}
+                <div className="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-sm px-3 py-1.5 rounded-lg border border-slate-700/60 shadow text-[11px] text-slate-300 font-mono flex items-center space-x-3 pointer-events-none z-20">
+                  <div className="flex items-center space-x-1.5">
+                    <Navigation className="w-3 h-3 text-blue-400" />
+                    <span>
+                      {cursorCoord
+                        ? `Lat: ${cursorCoord.lat.toFixed(6)}, Lon: ${cursorCoord.lon.toFixed(6)}`
+                        : `Center: ${mapCenter.lat.toFixed(4)}, ${mapCenter.lon.toFixed(4)}`}
+                    </span>
+                  </div>
+                  <span className="text-slate-500">|</span>
+                  <span className="text-blue-300 font-sans font-semibold">{getZoomDescription(zoomLevel)}</span>
+                </div>
+
+                {/* Helper Controls Hint (Bottom Right) */}
+                <div className="absolute bottom-3 right-3 bg-slate-900/80 backdrop-blur-sm px-2.5 py-1 rounded-lg border border-slate-700/60 shadow text-[10px] text-slate-400 font-sans flex items-center space-x-2 pointer-events-none z-20">
+                  <span>Hold <strong className="text-slate-200">Space</strong> or <strong className="text-slate-200">Right-Click</strong> to Pan</span>
+                  <span>•</span>
+                  <span><strong className="text-slate-200">Scroll</strong> to Zoom</span>
+                </div>
               </div>
             </div>
 
             {/* Right Sidebar: Selected / Highlighted Zone Details */}
             <div className="space-y-4">
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-5 shadow-sm space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2.5">
                   <h3 className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center">
                     <Compass className="w-4 h-4 mr-1.5 text-blue-600" />
                     Zone Inspector
@@ -851,15 +1628,22 @@ export default function AdminPricingPage() {
                       </div>
                       <div className="flex items-center space-x-1">
                         <button
+                          onClick={() => handleEditZoneGeometry(selectedZoneOnMap)}
+                          className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/50 rounded transition"
+                          title="Redraw or fine-tune boundary nodes"
+                        >
+                          <Crosshair className="w-3.5 h-3.5" />
+                        </button>
+                        <button
                           onClick={() => handleOpenZoneModal(selectedZoneOnMap)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded"
-                          title="Edit Zone"
+                          className="p-1.5 text-slate-400 hover:text-blue-600 rounded transition"
+                          title="Edit Zone Details & Pricing"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
                         </button>
                         <button
                           onClick={() => handleDeleteZone(selectedZoneOnMap)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded"
+                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded transition"
                           title="Delete Zone"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
@@ -904,11 +1688,25 @@ export default function AdminPricingPage() {
                         </p>
                       )}
                     </div>
+
+                    {/* Redraw Geometry Action */}
+                    <div className="pt-2 border-t border-slate-100 dark:border-slate-800">
+                      <button
+                        type="button"
+                        onClick={() => handleEditZoneGeometry(selectedZoneOnMap)}
+                        className="w-full inline-flex items-center justify-center px-3 py-1.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition"
+                      >
+                        <Crosshair className="w-3.5 h-3.5 mr-1 text-emerald-500" />
+                        Adjust Zone Nodes on Map
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <div className="text-center py-8 space-y-2 text-slate-400">
+                  <div className="text-center py-6 space-y-2 text-slate-400">
                     <MousePointer className="w-6 h-6 mx-auto opacity-50" />
-                    <p className="text-xs">Click any polygon on the map to inspect its pricing tiers and boundary geometry.</p>
+                    <p className="text-xs">
+                      Click any polygon on the map to inspect its pricing tiers, or click "Draw New Polygon Zone" to create a new one.
+                    </p>
                   </div>
                 )}
               </div>
@@ -921,7 +1719,23 @@ export default function AdminPricingPage() {
                 {zones.map((z) => (
                   <div
                     key={z.id}
-                    onClick={() => setSelectedZoneOnMap(z)}
+                    onClick={() => {
+                      setSelectedZoneOnMap(z);
+                      if (z.geometry) {
+                        let coords: Array<[number, number]> = [];
+                        if (z.geometry.type === "Polygon" && Array.isArray(z.geometry.coordinates)) {
+                          coords = z.geometry.coordinates[0] || [];
+                        } else if (z.geometry.type === "MultiPolygon" && Array.isArray(z.geometry.coordinates)) {
+                          coords = z.geometry.coordinates[0]?.[0] || [];
+                        }
+                        if (coords.length > 0) {
+                          const avgLon = coords.reduce((acc, c) => acc + c[0], 0) / coords.length;
+                          const avgLat = coords.reduce((acc, c) => acc + c[1], 0) / coords.length;
+                          setMapCenter({ lon: avgLon, lat: avgLat });
+                          setZoomLevel(11);
+                        }
+                      }
+                    }}
                     className={`p-2 rounded-lg border text-xs cursor-pointer flex items-center justify-between transition ${
                       selectedZoneOnMap?.id === z.id
                         ? "bg-blue-50 dark:bg-blue-950/60 border-blue-400 dark:border-blue-700 font-semibold text-blue-900 dark:text-blue-200"
@@ -1074,7 +1888,10 @@ export default function AdminPricingPage() {
 
               <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl divide-y divide-slate-100 dark:divide-slate-800 shadow-sm overflow-hidden">
                 {addons.map((addon) => (
-                  <div key={addon.id} className="p-3.5 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition">
+                  <div
+                    key={addon.id}
+                    className="p-3.5 flex items-center justify-between hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition"
+                  >
                     <div className="space-y-0.5">
                       <div className="flex items-center space-x-2">
                         <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
@@ -1116,7 +1933,7 @@ export default function AdminPricingPage() {
 
         {/* Edit/Create Zone Modal */}
         {isZoneModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
@@ -1320,7 +2137,7 @@ export default function AdminPricingPage() {
 
         {/* Edit/Create Addon Modal */}
         {isAddonModalOpen && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+          <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-150">
             <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl max-w-md w-full p-6 shadow-2xl space-y-4">
               <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
                 <h3 className="font-bold text-base text-slate-900 dark:text-slate-100">
