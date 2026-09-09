@@ -139,18 +139,10 @@ export async function calculateQuotePrice(
     sayScript,
   });
 
-  // 1. Check strict product declines
-  if (productType === "alta") {
-    return declineResult(
-      "We no longer quote ALTA / NSPS surveys",
-      "ALTA surveys require extensive crew hours. Capacity is prioritized for standard boundary and title work.",
-      "We have stepped back from ALTA surveys and are focused on title and boundary work. I can point you to someone who handles them if that helps."
-    );
-  }
-
+  // 1. Check territory-specific geographic product restrictions
   if (state === "NC" && productType === "subdivision") {
     return declineResult(
-      "We do not do subdivision work in North Carolina",
+      "Subdivision Work Not Offered in NC",
       "Subdivision work is not offered from our Raleigh regional branch.",
       "We do not handle subdivision work out of our Raleigh office. We focus on title, boundary and residential survey work there."
     );
@@ -158,17 +150,17 @@ export async function calculateQuotePrice(
 
   if (state === "NC" && productType === "permit") {
     return declineResult(
-      "We no longer quote permit surveys in North Carolina",
-      "The Raleigh branch stopped quoting permit surveys in mid-2026.",
-      "We have stepped back from permit surveys in North Carolina, but we are still doing your title and boundary work."
+      "Permit Surveys Not Quoted in NC",
+      "The Raleigh branch does not quote municipal permit surveys.",
+      "We do not quote permit surveys in North Carolina, but we are happy to assist with title and boundary work."
     );
   }
 
   // 2. Check manual routing products
   if (state === "NY" && productType === "subdivision") {
     return routeResult(
-      "Subdivision — New York Review",
-      "Subdivision scope in New York must be evaluated by a project manager."
+      "Subdivision — Scope Review",
+      "Subdivision scope must be evaluated and priced individually by a project manager."
     );
   }
 
@@ -243,14 +235,14 @@ export async function calculateQuotePrice(
   }
   if (factors["Commercial/ALTA"]) {
     return routeResult(
-      "Commercial Property",
-      "Commercial surveys fall outside standard residential book pricing."
+      "Commercial / ALTA Property Review",
+      "Commercial / ALTA surveys require custom scope review by a project manager."
     );
   }
   if (factors["Heavily wooded"] && acres !== null && acres > 1.0) {
     return routeResult(
       "Heavily Wooded (> 1 Acre)",
-      "Dense vegetation on parcels exceeding 1 acre significantly impacts traverse clearing."
+      "Dense vegetation on larger parcels significantly impacts traverse clearing."
     );
   }
 
@@ -258,14 +250,7 @@ export async function calculateQuotePrice(
   if (acres === null || isNaN(acres) || acres <= 0) {
     return routeResult(
       "Acreage Required",
-      "Enter the parcel acreage to calculate published pricing (bands up to 3 acres)."
-    );
-  }
-
-  if (acres > 3.0) {
-    return routeResult(
-      "Parcel Exceeds 3.0 Acres",
-      "Standard pricing book applies to lots up to 3.0 acres. Larger parcels are custom-quoted."
+      "Enter the parcel acreage to calculate published pricing."
     );
   }
 
@@ -356,11 +341,15 @@ export async function calculateQuotePrice(
     basePrice = stakeoutAddon?.price || (state === "NC" ? 450 : 600);
     basis = "Stakeout Only";
   } else {
+    const maxConfiguredAcres = matchedZone.bands.length > 0
+      ? Math.max(...matchedZone.bands.map((b: any) => b.maxAcres))
+      : 0;
+
     const band = matchedZone.bands.find((b: any) => acres! <= b.maxAcres + 0.0001);
     if (!band) {
       return routeResult(
-        "Acreage Band Exceeded",
-        `Acreage ${acres} exceeds available bands for ${matchedZone.name}. Quoted individually.`
+        "Property Acreage Too Large",
+        `The parcel size (${acres} acres) is too big for the configured pricing tiers (max ${maxConfiguredAcres} acres) in ${matchedZone.name}. Quoted individually by project manager.`
       );
     }
     basePrice = band.price;

@@ -576,9 +576,8 @@ function decide(loc,inp){
   if(loc.state==='nc' && inp.product==='permit') return {mode:'decline',reason:'We no longer quote permit surveys in North Carolina',
     detail:'The Raleigh branch stopped quoting permit surveys in mid 2026. The client relationship is not affected — fence companies and builders are still active clients for title and boundary work. This is the permit product only.',
     say:'We have stepped back from permit surveys in North Carolina, but we are still doing your title and boundary work.'};
-  if(inp.product==='alta') return {mode:'decline',reason:'We no longer quote ALTA / NSPS surveys',
-    detail:'We stopped quoting ALTA work in both regions. An ALTA runs roughly forty crew hours against six for a title survey, and that capacity is prioritized for title work. Do not quote it and do not route it for pricing.',
-    say:'We have stepped back from ALTA surveys and are focused on title and boundary work. I can point you to someone who handles them if that helps.'};
+  if(inp.product==='alta') return R('ALTA / Commercial Survey Review',
+    'ALTA / Commercial surveys require custom scope and schedule review by a project manager.');
   const ALWAYS={update:['Updated survey or title update',
       'These are priced off the original file, so somebody has to check whether we did the first survey and what we charged. That is a records question, not a map question.'],
     topo:['Topographic or spot elevations',
@@ -596,8 +595,7 @@ function decide(loc,inp){
     if(w) r.window=w;
     return r;
   }
-  if(inp.acres===null||isNaN(inp.acres)) return R('Lot size is missing','Enter the acreage. Price bands run to 3 acres; anything larger is a project manager quote.');
-  if(inp.acres>3) return R('Lot is over 3 acres','Published bands stop at 3 acres. Larger parcels are quoted individually.');
+  if(inp.acres===null||isNaN(inp.acres)) return R('Lot size is missing','Enter the acreage to calculate published pricing.');
   if(inp.flags.metes) return R('Metes and bounds description','Unplatted parcels take materially longer to research and run and are not covered by the standard price.');
   if(inp.flags.access) return R('Access is restricted or unknown','No road access, a gate, or unconfirmed access changes the crew plan.');
   if(inp.flags.multi)   return R('Multiple lots or parcels','The property is more than one lot and the CSR has not combined them. Either add the adjoining lots so the acreage is right, or send it for review.');
