@@ -49,7 +49,7 @@ export async function PUT(
     }
 
     const body = await req.json();
-    const { name, state, description, quoteOnly, outOfArea, basePrice, bands } = body;
+    const { name, state, description, color, priority, quoteOnly, outOfArea, basePrice, geometry, bands } = body;
 
     const updated = await prisma.pricingZone.update({
       where: { id: params.id },
@@ -57,11 +57,14 @@ export async function PUT(
         ...(name !== undefined && { name: name.trim() }),
         ...(state !== undefined && { state: state.trim().toUpperCase() }),
         ...(description !== undefined && { description }),
+        ...(color !== undefined && { color: color || "#3b82f6" }),
+        ...(priority !== undefined && { priority: parseInt(String(priority), 10) }),
         ...(quoteOnly !== undefined && { quoteOnly: Boolean(quoteOnly) }),
         ...(outOfArea !== undefined && { outOfArea: Boolean(outOfArea) }),
         ...(basePrice !== undefined && {
           basePrice: basePrice !== null && basePrice !== "" ? parseFloat(basePrice) : null,
         }),
+        ...(geometry !== undefined && { geometry: geometry || null }),
       },
       include: {
         bands: {

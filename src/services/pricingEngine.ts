@@ -64,6 +64,49 @@ export function normalizeProductType(productName?: string | null): string {
 }
 
 /**
+ * Ray-Casting algorithm to test if a point [lon, lat] is inside GeoJSON Polygon coordinates
+ */
+export function isPointInPolygon(point: [number, number], geometry: any): boolean {
+  if (!geometry || !point || typeof point[0] !== "number" || typeof point[1] !== "number") {
+    return false;
+  }
+
+  const [lon, lat] = point;
+
+  let polygons: number[][][][] = [];
+  if (geometry.type === "Polygon" && Array.isArray(geometry.coordinates)) {
+    polygons = [geometry.coordinates];
+  } else if (geometry.type === "MultiPolygon" && Array.isArray(geometry.coordinates)) {
+    polygons = geometry.coordinates;
+  } else if (Array.isArray(geometry)) {
+    polygons = [[geometry]];
+  }
+
+  for (const poly of polygons) {
+    if (!poly || poly.length === 0) continue;
+    const ring = poly[0];
+    if (!ring || ring.length < 3) continue;
+
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = ring[i][0];
+      const yi = ring[i][1];
+      const xj = ring[j][0];
+      const yj = ring[j][1];
+
+      const intersect =
+        yi > lat !== yj > lat &&
+        lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+      if (intersect) inside = !inside;
+    }
+
+    if (inside) return true;
+  }
+
+  return false;
+}
+
+/**
  * Resolves regional project manager contact for routed quotes
  */
 function getManagerInfo(state: string) {
@@ -265,36 +308,49 @@ export async function calculateQuotePrice(
   }
 
   if (!matchedZone) {
-    const normCounty = (county || "").trim().toLowerCase();
     const zones: any[] = await (prisma as any).pricingZone.findMany({
       where: { state },
       include: { bands: { orderBy: { maxAcres: "asc" } } },
-      orderBy: { name: "asc" },
+      orderBy: [{ priority: "desc" }, { name: "asc" }],
     });
 
-    if (state === "NY") {
-      if (normCounty.includes("nassau")) {
-        matchedZone = zones.find((z: any) => z.name.includes("Zone A"));
-      } else if (normCounty.includes("suffolk")) {
-        if (normCounty.includes("east") || (lon !== null && lon > -72.5)) {
-          matchedZone = zones.find((z: any) => z.name.includes("Zone E"));
-        } else {
-          matchedZone = zones.find((z: any) => z.name.includes("Zone B"));
+    // 1. Spatial Match: Test Point-in-Polygon against drawn map boundaries (ordered by priority desc)
+    if (lat !== null && lon !== null) {
+      for (const z of zones) {
+        if (z.geometry && isPointInPolygon([lon, lat], z.geometry)) {
+          matchedZone = z;
+          break;
         }
-      } else if (normCounty.includes("westchester")) {
-        matchedZone = zones.find((z: any) => z.name.includes("Zone C"));
-      } else if (
-        normCounty.includes("bronx") ||
-        normCounty.includes("staten") ||
-        normCounty.includes("rockland") ||
-        normCounty.includes("putnam")
-      ) {
-        matchedZone = zones.find((z: any) => z.name.includes("Zone D"));
-      } else if (normCounty.includes("manhattan") || normCounty.includes("new york")) {
-        matchedZone = zones.find((z: any) => z.outOfArea);
       }
-    } else if (state === "NC") {
-      matchedZone = zones.find((z: any) => z.name.includes("Zone 1")) || zones[0];
+    }
+
+    // 2. Fallback by county / region heuristics if point is not inside a drawn polygon
+    if (!matchedZone) {
+      const normCounty = (county || "").trim().toLowerCase();
+      if (state === "NY") {
+        if (normCounty.includes("nassau")) {
+          matchedZone = zones.find((z: any) => z.name.includes("Zone A"));
+        } else if (normCounty.includes("suffolk")) {
+          if (normCounty.includes("east") || (lon !== null && lon > -72.5)) {
+            matchedZone = zones.find((z: any) => z.name.includes("Zone E"));
+          } else {
+            matchedZone = zones.find((z: any) => z.name.includes("Zone B"));
+          }
+        } else if (normCounty.includes("westchester")) {
+          matchedZone = zones.find((z: any) => z.name.includes("Zone C"));
+        } else if (
+          normCounty.includes("bronx") ||
+          normCounty.includes("staten") ||
+          normCounty.includes("rockland") ||
+          normCounty.includes("putnam")
+        ) {
+          matchedZone = zones.find((z: any) => z.name.includes("Zone D"));
+        } else if (normCounty.includes("manhattan") || normCounty.includes("new york")) {
+          matchedZone = zones.find((z: any) => z.outOfArea);
+        }
+      } else if (state === "NC") {
+        matchedZone = zones.find((z: any) => z.name.includes("Zone 1")) || zones[0];
+      }
     }
 
     if (!matchedZone && zones.length > 0) {

@@ -426,9 +426,12 @@ model PricingZone {
   name        String        
   state       String        
   description String?
+  color       String?       @default("#3b82f6")
+  priority    Int           @default(0)
   quoteOnly   Boolean       @default(false)
   outOfArea   Boolean       @default(false)
   basePrice   Float?        
+  geometry    Json?
   bands       PricingBand[]
 }
 

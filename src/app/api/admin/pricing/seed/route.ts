@@ -11,9 +11,46 @@ const SEED_ZONES = [
     name: "Zone 1",
     state: "NC",
     description: "Inside 1 hour of Clayton, where most crews mobilize from",
+    color: "#10b981", // Emerald
+    priority: 30,
     quoteOnly: false,
     outOfArea: false,
     basePrice: null,
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [-77.73168, 35.58502],
+          [-77.86653, 35.97474],
+          [-78.29224, 36.10696],
+          [-78.45059, 36.10185],
+          [-78.54622, 36.09069],
+          [-78.82621, 36.14685],
+          [-79.01065, 36.03887],
+          [-79.06093, 35.94842],
+          [-79.23825, 35.80403],
+          [-79.24312, 35.76102],
+          [-79.2369, 35.67082],
+          [-79.28364, 35.55962],
+          [-79.18329, 35.47866],
+          [-79.14387, 35.44454],
+          [-78.99933, 35.2941],
+          [-78.98067, 35.11254],
+          [-78.92265, 35.07064],
+          [-78.78905, 35.04543],
+          [-78.66592, 35.12835],
+          [-78.38793, 35.18923],
+          [-78.23872, 35.21198],
+          [-78.06693, 35.24469],
+          [-78.06247, 35.24589],
+          [-78.058, 35.24586],
+          [-77.93254, 35.33265],
+          [-77.86868, 35.41849],
+          [-77.85887, 35.43542],
+          [-77.73168, 35.58502],
+        ],
+      ],
+    },
     bands: [
       { maxAcres: 1.0, price: 700.0 },
       { maxAcres: 2.0, price: 950.0 },
@@ -24,9 +61,63 @@ const SEED_ZONES = [
     name: "Zone 2",
     state: "NC",
     description: "1 to 1.5 hours from Clayton",
+    color: "#f59e0b", // Amber
+    priority: 20,
     quoteOnly: false,
     outOfArea: false,
     basePrice: null,
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [-77.66689, 35.00044],
+          [-77.6897, 35.00946],
+          [-77.50608, 35.22474],
+          [-77.40261, 35.41953],
+          [-77.29856, 35.69006],
+          [-77.24967, 35.85236],
+          [-77.30905, 36.13242],
+          [-77.48683, 36.30661],
+          [-77.56401, 36.45158],
+          [-77.74424, 36.50866],
+          [-78.03724, 36.52387],
+          [-78.25754, 36.52203],
+          [-78.26575, 36.52204],
+          [-78.3355, 36.5221],
+          [-78.54474, 36.52768],
+          [-78.83347, 36.52852],
+          [-78.9798, 36.50503],
+          [-79.17786, 36.34223],
+          [-79.43483, 36.13605],
+          [-79.46814, 36.0797],
+          [-79.51306, 35.98035],
+          [-79.56577, 35.85784],
+          [-79.64577, 35.73835],
+          [-79.76494, 35.76359],
+          [-79.83455, 35.75626],
+          [-79.83716, 35.74962],
+          [-79.84115, 35.74297],
+          [-79.88371, 35.67532],
+          [-79.83336, 35.60873],
+          [-79.79579, 35.47593],
+          [-79.79157, 35.46718],
+          [-79.78599, 35.45843],
+          [-79.77901, 35.4464],
+          [-79.75569, 35.22853],
+          [-79.74622, 35.11614],
+          [-79.51369, 34.92277],
+          [-79.50844, 34.92111],
+          [-79.18005, 34.8178],
+          [-78.95618, 34.78228],
+          [-78.81869, 34.71607],
+          [-78.47266, 34.7036],
+          [-78.47162, 34.7036],
+          [-78.44459, 34.70957],
+          [-77.9726, 34.72407],
+          [-77.66689, 35.00044],
+        ],
+      ],
+    },
     bands: [
       { maxAcres: 1.0, price: 875.0 },
       { maxAcres: 2.0, price: 1125.0 },
@@ -37,18 +128,24 @@ const SEED_ZONES = [
     name: "Zone 3",
     state: "NC",
     description: "1.5 to 2 hours from Clayton",
+    color: "#6366f1", // Indigo
+    priority: 10,
     quoteOnly: true,
     outOfArea: false,
     basePrice: 1200.0,
+    geometry: null,
     bands: [],
   },
   {
     name: "Outside the area",
     state: "NC",
     description: "Beyond 2 hours from Clayton",
+    color: "#ef4444", // Rose/Red
+    priority: 0,
     quoteOnly: false,
     outOfArea: true,
     basePrice: null,
+    geometry: null,
     bands: [],
   },
 
@@ -57,9 +154,23 @@ const SEED_ZONES = [
     name: "Zone A",
     state: "NY",
     description: "Nassau, inland",
+    color: "#3b82f6", // Blue
+    priority: 25,
     quoteOnly: false,
     outOfArea: false,
     basePrice: null,
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [-73.76, 40.58],
+          [-73.74, 40.89],
+          [-73.45, 40.89],
+          [-73.44, 40.58],
+          [-73.76, 40.58],
+        ],
+      ],
+    },
     bands: [
       { maxAcres: 0.8, price: 750.0 },
       { maxAcres: 1.5, price: 1000.0 },
@@ -71,9 +182,23 @@ const SEED_ZONES = [
     name: "Zone B",
     state: "NY",
     description: "Suffolk inland west of the forks, Queens, Brooklyn",
+    color: "#06b6d4", // Cyan
+    priority: 20,
     quoteOnly: false,
     outOfArea: false,
     basePrice: null,
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [-73.45, 40.62],
+          [-73.45, 40.93],
+          [-72.503, 40.93],
+          [-72.503, 40.7],
+          [-73.45, 40.62],
+        ],
+      ],
+    },
     bands: [
       { maxAcres: 0.8, price: 750.0 },
       { maxAcres: 1.5, price: 1000.0 },
@@ -85,9 +210,23 @@ const SEED_ZONES = [
     name: "Zone C",
     state: "NY",
     description: "Westchester north of Yonkers",
+    color: "#8b5cf6", // Violet
+    priority: 20,
     quoteOnly: false,
     outOfArea: false,
     basePrice: null,
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [-73.92, 40.95],
+          [-73.92, 41.35],
+          [-73.55, 41.35],
+          [-73.65, 40.95],
+          [-73.92, 40.95],
+        ],
+      ],
+    },
     bands: [
       { maxAcres: 0.8, price: 1075.0 },
       { maxAcres: 1.5, price: 1550.0 },
@@ -99,9 +238,23 @@ const SEED_ZONES = [
     name: "Zone D",
     state: "NY",
     description: "Bronx, Staten Island, Yonkers and lower Westchester, Rockland, Putnam",
+    color: "#ec4899", // Pink
+    priority: 20,
     quoteOnly: false,
     outOfArea: false,
     basePrice: null,
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [-74.26, 40.48],
+          [-74.26, 41.52],
+          [-73.75, 41.52],
+          [-73.75, 40.48],
+          [-74.26, 40.48],
+        ],
+      ],
+    },
     bands: [
       { maxAcres: 0.8, price: 1325.0 },
       { maxAcres: 1.5, price: 1875.0 },
@@ -112,10 +265,26 @@ const SEED_ZONES = [
   {
     name: "Zone E",
     state: "NY",
-    description: "East End — Southold hamlet east on the North Fork, Shinnecock Canal east on South Fork, Shelter Island, Fishers Island",
+    description: "East End — Southold hamlet east on North Fork, Shinnecock Canal east on South Fork, Shelter Island, Fishers Island",
+    color: "#a855f7", // Purple
+    priority: 30, // Higher priority over Zone B in overlapping coastal bounds
     quoteOnly: false,
     outOfArea: false,
     basePrice: null,
+    geometry: {
+      type: "Polygon",
+      coordinates: [
+        [
+          [-72.445, 41.4],
+          [-72.445, 41.0],
+          [-72.503, 40.93],
+          [-72.503, 40.7],
+          [-71.6, 40.7],
+          [-71.6, 41.4],
+          [-72.445, 41.4],
+        ],
+      ],
+    },
     bands: [
       { maxAcres: 0.8, price: 1650.0 },
       { maxAcres: 1.5, price: 2300.0 },
@@ -127,18 +296,24 @@ const SEED_ZONES = [
     name: "Quote only",
     state: "NY",
     description: "Individually quoted areas",
+    color: "#eab308", // Yellow
+    priority: 10,
     quoteOnly: true,
     outOfArea: false,
     basePrice: null,
+    geometry: null,
     bands: [],
   },
   {
     name: "Outside the area",
     state: "NY",
     description: "Manhattan, and anything north of Putnam County",
+    color: "#ef4444", // Red
+    priority: 0,
     quoteOnly: false,
     outOfArea: true,
     basePrice: null,
+    geometry: null,
     bands: [],
   },
 ];
@@ -263,7 +438,7 @@ export async function POST() {
 
     // Seed Pricing Zones & Bands
     for (const z of SEED_ZONES) {
-      const existing = await prisma.pricingZone.findFirst({
+      const existing: any = await prisma.pricingZone.findFirst({
         where: { name: z.name, state: z.state },
       });
 
@@ -273,22 +448,28 @@ export async function POST() {
           where: { id: existing.id },
           data: {
             description: z.description,
+            color: z.color,
+            priority: z.priority,
             quoteOnly: z.quoteOnly,
             outOfArea: z.outOfArea,
             basePrice: z.basePrice,
+            geometry: z.geometry as any,
           },
         });
         // Delete old bands and recreate
         await prisma.pricingBand.deleteMany({ where: { zoneId: existing.id } });
       } else {
-        const created = await prisma.pricingZone.create({
+        const created: any = await prisma.pricingZone.create({
           data: {
             name: z.name,
             state: z.state,
             description: z.description,
+            color: z.color,
+            priority: z.priority,
             quoteOnly: z.quoteOnly,
             outOfArea: z.outOfArea,
             basePrice: z.basePrice,
+            geometry: z.geometry as any,
           },
         });
         zoneId = created.id;

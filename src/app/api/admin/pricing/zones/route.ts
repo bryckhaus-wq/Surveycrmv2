@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
           orderBy: { maxAcres: "asc" },
         },
       },
-      orderBy: [{ state: "asc" }, { name: "asc" }],
+      orderBy: [{ priority: "desc" }, { state: "asc" }, { name: "asc" }],
     });
 
     return NextResponse.json(zones);
@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, state, description, quoteOnly, outOfArea, basePrice, bands } = body;
+    const { name, state, description, color, priority, quoteOnly, outOfArea, basePrice, geometry, bands } = body;
 
     if (!name || !state) {
       return NextResponse.json(
@@ -57,9 +57,12 @@ export async function POST(req: NextRequest) {
         name: name.trim(),
         state: state.trim().toUpperCase(),
         description: description || null,
+        color: color || "#3b82f6",
+        priority: priority !== undefined ? parseInt(String(priority), 10) : 0,
         quoteOnly: Boolean(quoteOnly),
         outOfArea: Boolean(outOfArea),
         basePrice: basePrice !== undefined && basePrice !== null && basePrice !== "" ? parseFloat(basePrice) : null,
+        geometry: geometry || null,
         bands: {
           create: Array.isArray(bands)
             ? bands.map((b: any) => ({
