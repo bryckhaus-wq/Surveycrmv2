@@ -121,23 +121,26 @@ function calculateAcreageFromRings(rings: number[][][], centerLat: number): numb
 function extractAcreageFromAttributes(attrs: Record<string, any> | undefined | null): number | null {
   if (!attrs) return null;
 
+  // Normalize all keys for case-insensitive lookup
+  const normalizedAttrs: Record<string, any> = {};
+  for (const [key, value] of Object.entries(attrs)) {
+    normalizedAttrs[key.toLowerCase().replace(/[^a-z0-9]/g, "")] = value;
+  }
+
   // 1. Direct acreage fields (must be positive numbers)
   const directAcreKeys = [
-    "ACRES",
-    "CALC_ACRES",
-    "GISACRES",
-    "DEED_ACRES",
+    "acres",
     "calcacres",
     "gisacres",
-    "acres",
-    "calc_acres",
-    "deed_acres",
-    "TOTAL_ACRES",
-    "PARCEL_ACRES",
+    "deedacres",
+    "totalacres",
+    "parcelacres",
+    "parvalacres",
+    "lotsizeacres",
   ];
   for (const key of directAcreKeys) {
-    if (attrs[key] !== undefined && attrs[key] !== null) {
-      const val = parseFloat(String(attrs[key]));
+    if (normalizedAttrs[key] !== undefined && normalizedAttrs[key] !== null) {
+      const val = parseFloat(String(normalizedAttrs[key]));
       if (!isNaN(val) && val > 0 && val < 100000) {
         return Math.round(val * 1000) / 1000;
       }
@@ -145,10 +148,10 @@ function extractAcreageFromAttributes(attrs: Record<string, any> | undefined | n
   }
 
   // 2. Square footage fields (converted to acres)
-  const sqFtKeys = ["SQ_FT", "SQFT", "sq_ft", "sqft", "LOT_SQFT", "LOT_SIZE_SQFT"];
+  const sqFtKeys = ["sqft", "sqfeet", "lotsqft", "lotsizesqft", "grosssqft", "sqftliving"];
   for (const key of sqFtKeys) {
-    if (attrs[key] !== undefined && attrs[key] !== null) {
-      const val = parseFloat(String(attrs[key]));
+    if (normalizedAttrs[key] !== undefined && normalizedAttrs[key] !== null) {
+      const val = parseFloat(String(normalizedAttrs[key]));
       if (!isNaN(val) && val > 0 && val < 1000000000) {
         return Math.round((val / 43560) * 1000) / 1000;
       }
@@ -329,8 +332,8 @@ export async function queryParcelData(
   if (isNC || (!isNY && !normState)) {
     try {
       const ncData = await runEsriQuery(
-        "https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/MapServer/1/query",
-        "gisacres,siteadd,ownname,parno,pin,cntynam,calcacres"
+        "https://services.nconemap.gov/secure/rest/services/NC1Map_Parcels/MapServer/0/query",
+        "*"
       );
       if (ncData?.features && ncData.features.length > 0) {
         const feat = ncData.features[0];
@@ -339,16 +342,41 @@ export async function queryParcelData(
         if (formattedAcres === null && feat.geometry?.rings) {
           formattedAcres = calculateAcreageFromRings(feat.geometry.rings, lat);
         }
-        const parcelId = attrs.parno || attrs.pin || attrs.parcel_id || null;
+        const parcelId =
+          attrs.parno ||
+          attrs.PARNO ||
+          attrs.pin ||
+          attrs.PIN ||
+          attrs.parcel_id ||
+          attrs.PARCEL_ID ||
+          attrs.nparno ||
+          attrs.NPARNO ||
+          attrs.reid ||
+          attrs.REID ||
+          null;
 
         return {
           parcelId,
           taxParcelId: parcelId,
           deedAcres: formattedAcres,
           acres: formattedAcres,
-          primaryOwner: attrs.ownname || null,
-          propertyClass: attrs.propclass || null,
-          county: attrs.cntynam || null,
+          primaryOwner:
+            attrs.ownname ||
+            attrs.OWNNAME ||
+            attrs.OWNERNME1 ||
+            attrs.ownernme1 ||
+            attrs.OWNER ||
+            attrs.PRIMARY_OWNER ||
+            null,
+          propertyClass:
+            attrs.propclass ||
+            attrs.PROPCLASS ||
+            attrs.presentuse ||
+            attrs.PRESENTUSE ||
+            attrs.classdesc ||
+            attrs.CLASSDESC ||
+            null,
+          county: attrs.cntynam || attrs.CNTYNAM || attrs.cntname || attrs.CNTYNAME || null,
           rawAttributes: attrs,
         };
       }
