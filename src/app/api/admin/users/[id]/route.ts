@@ -17,6 +17,19 @@ export async function PUT(
   if (!hasAdminAccess(session.user.role)) return new NextResponse("Forbidden", { status: 403 });
 
   try {
+    const existingUser = await prisma.user.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const defaultAdminEmail = process.env.DEFAULT_ADMIN_EMAIL?.toLowerCase().trim();
+    const isProtectedDefaultAdmin = Boolean(
+      defaultAdminEmail && existingUser.email.toLowerCase() === defaultAdminEmail
+    );
+
     const body = await req.json();
     const {
       name,
@@ -30,6 +43,27 @@ export async function PUT(
       longitude,
       password,
     } = body;
+
+    if (isProtectedDefaultAdmin) {
+      if (isActive !== undefined && !isActive) {
+        return NextResponse.json(
+          { error: "The default system administrator account cannot be deactivated." },
+          { status: 403 }
+        );
+      }
+      if (role !== undefined && role !== Role.ADMIN) {
+        return NextResponse.json(
+          { error: "The default system administrator role cannot be changed." },
+          { status: 403 }
+        );
+      }
+      if (email !== undefined && email.toLowerCase().trim() !== defaultAdminEmail) {
+        return NextResponse.json(
+          { error: "The default system administrator email is managed in the environment file and cannot be modified." },
+          { status: 403 }
+        );
+      }
+    }
 
     const dataToUpdate: any = {};
 
@@ -105,6 +139,22 @@ export async function DELETE(
   if (!hasAdminAccess(session.user.role)) return new NextResponse("Forbidden", { status: 403 });
 
   try {
+    const existingUser = await prisma.user.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const defaultAdminEmail = process.env.DEFAULT_ADMIN_EMAIL?.toLowerCase().trim();
+    if (defaultAdminEmail && existingUser.email.toLowerCase() === defaultAdminEmail) {
+      return NextResponse.json(
+        { error: "The default system administrator account is protected and cannot be deleted." },
+        { status: 403 }
+      );
+    }
+
     await prisma.user.delete({
       where: { id: params.id },
     });

@@ -33,6 +33,7 @@ interface StaffUser {
   email: string;
   role: Role;
   isActive: boolean;
+  isProtected?: boolean;
   commissionRate?: number;
   address?: string | null;
   latitude?: number | null;
@@ -1003,7 +1004,14 @@ export default function AdminPage() {
                       users.map((u) => (
                         <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
                           <td className="py-2.5 px-3">
-                            <div className="font-semibold text-xs text-slate-900 dark:text-slate-100">{u.name}</div>
+                            <div className="font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center space-x-1.5">
+                              <span>{u.name}</span>
+                              {u.isProtected && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-bold bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800" title="Protected System Administrator (Configured via Environment)">
+                                  Protected
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[11px] text-slate-500 dark:text-slate-400">{u.email}</div>
                             {u.address && (
                               <div className="text-[10px] text-slate-400 dark:text-slate-500 flex items-center mt-0.5">
@@ -1029,14 +1037,26 @@ export default function AdminPage() {
                               <Pencil className="w-3 h-3 mr-1" />
                               Edit
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleResetPassword(u)}
-                              className="inline-flex items-center px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-900/40 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
-                            >
-                              <Lock className="w-3 h-3 mr-1" />
-                              Reset Password
-                            </button>
+                            {u.isProtected ? (
+                              <button
+                                type="button"
+                                disabled
+                                title="Password is managed in .env file"
+                                className="inline-flex items-center px-2.5 py-1 bg-slate-50 dark:bg-slate-800/40 text-slate-400 dark:text-slate-600 text-xs font-semibold rounded-lg border border-slate-200/60 dark:border-slate-800 cursor-not-allowed"
+                              >
+                                <Lock className="w-3 h-3 mr-1 opacity-50" />
+                                Protected (.env)
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => handleResetPassword(u)}
+                                className="inline-flex items-center px-2.5 py-1 bg-slate-100 dark:bg-slate-800 hover:bg-amber-50 dark:hover:bg-amber-900/40 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 transition-colors"
+                              >
+                                <Lock className="w-3 h-3 mr-1" />
+                                Reset Password
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -1278,14 +1298,15 @@ export default function AdminPage() {
 
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    Email Address *
+                    Email Address * {editingUser.isProtected && "(Protected in .env)"}
                   </label>
                   <input
                     type="email"
                     required
+                    disabled={editingUser.isProtected}
                     value={editUserEmail}
                     onChange={(e) => setEditUserEmail(e.target.value)}
-                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={`w-full px-3 py-1.5 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none ${editingUser.isProtected ? "bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-not-allowed" : "bg-white dark:bg-slate-900"}`}
                   />
                 </div>
               </div>
@@ -1293,12 +1314,13 @@ export default function AdminPage() {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                    System Role
+                    System Role {editingUser.isProtected && "(Protected)"}
                   </label>
                   <select
                     value={editUserRole}
+                    disabled={editingUser.isProtected}
                     onChange={(e) => setEditUserRole(e.target.value as Role)}
-                    className="w-full px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                    className={`w-full px-3 py-1.5 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 rounded-lg text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none ${editingUser.isProtected ? "bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-not-allowed" : "bg-white dark:bg-slate-900"}`}
                   >
                     <option value={Role.ADMIN}>ADMIN (Full Access)</option>
                     <option value={Role.CSR}>CSR (Customer Service)</option>

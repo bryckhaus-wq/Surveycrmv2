@@ -16,6 +16,22 @@ export async function POST(
   if (!hasAdminAccess(session.user.role)) return new NextResponse("Forbidden", { status: 403 });
 
   try {
+    const existingUser = await prisma.user.findUnique({
+      where: { id: params.id },
+    });
+
+    if (!existingUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const defaultAdminEmail = process.env.DEFAULT_ADMIN_EMAIL?.toLowerCase().trim();
+    if (defaultAdminEmail && existingUser.email.toLowerCase() === defaultAdminEmail) {
+      return NextResponse.json(
+        { error: "The default system administrator password is configured via the environment file and cannot be reset through the UI." },
+        { status: 403 }
+      );
+    }
+
     const body = await req.json();
     const { newPassword } = body;
 

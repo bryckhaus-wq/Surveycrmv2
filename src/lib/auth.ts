@@ -21,9 +21,55 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        const cleanEmail = credentials.email.toLowerCase().trim();
+        const defaultAdminEmail = process.env.DEFAULT_ADMIN_EMAIL?.toLowerCase().trim();
+        const defaultAdminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+        const defaultAdminName = process.env.DEFAULT_ADMIN_NAME || "System Administrator";
+
+        // Check if matching environment-defined default admin credentials
+        if (
+          defaultAdminEmail &&
+          defaultAdminPassword &&
+          cleanEmail === defaultAdminEmail &&
+          credentials.password === defaultAdminPassword
+        ) {
+          let adminUser = await prisma.user.findUnique({
+            where: { email: defaultAdminEmail },
+          });
+
+          if (!adminUser) {
+            const hashedPassword = await bcrypt.hash(defaultAdminPassword, 10);
+            adminUser = await prisma.user.create({
+              data: {
+                email: defaultAdminEmail,
+                name: defaultAdminName,
+                role: "ADMIN",
+                isActive: true,
+                password: hashedPassword,
+              },
+            });
+          } else {
+            // Keep active and ensure ADMIN role
+            if (!adminUser.isActive || adminUser.role !== "ADMIN") {
+              adminUser = await prisma.user.update({
+                where: { id: adminUser.id },
+                data: { isActive: true, role: "ADMIN" },
+              });
+            }
+          }
+
+          return {
+            id: adminUser.id,
+            email: adminUser.email,
+            name: adminUser.name,
+            role: adminUser.role,
+            spokeId: adminUser.spokeId,
+          };
+        }
+
         const user = await prisma.user.findUnique({
           where: {
-            email: credentials.email.toLowerCase().trim(),
+            email: cleanEmail,
           },
         });
 

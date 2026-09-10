@@ -183,6 +183,32 @@ async function main() {
     });
   }
 
+  // 3b. Seed Protected Default System Admin from Environment (if configured)
+  const defaultAdminEmail = process.env.DEFAULT_ADMIN_EMAIL?.toLowerCase().trim();
+  const defaultAdminPassword = process.env.DEFAULT_ADMIN_PASSWORD;
+  const defaultAdminName = process.env.DEFAULT_ADMIN_NAME || "System Administrator";
+
+  if (defaultAdminEmail && defaultAdminPassword) {
+    const defaultHashedPassword = await bcrypt.hash(defaultAdminPassword, 10);
+    await prisma.user.upsert({
+      where: { email: defaultAdminEmail },
+      update: {
+        name: defaultAdminName,
+        role: Role.ADMIN,
+        isActive: true,
+        password: defaultHashedPassword,
+      },
+      create: {
+        email: defaultAdminEmail,
+        name: defaultAdminName,
+        role: Role.ADMIN,
+        isActive: true,
+        password: defaultHashedPassword,
+      },
+    });
+    console.log(`Protected system admin seeded: ${defaultAdminEmail}`);
+  }
+
   // 4. Seed Sample Clients
   const clientsData = [
     {
