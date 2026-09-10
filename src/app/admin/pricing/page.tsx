@@ -34,6 +34,7 @@ import {
   Sliders,
   Navigation,
   HelpCircle,
+  Mail,
 } from "lucide-react";
 
 interface PricingBandItem {
@@ -54,6 +55,8 @@ interface PricingZoneItem {
   outOfArea: boolean;
   basePrice: number | null;
   geometry?: any;
+  escalationEmail?: string | null;
+  escalationName?: string | null;
   bands: PricingBandItem[];
 }
 
@@ -236,6 +239,9 @@ export default function AdminPricingPage() {
   const [zoneQuoteOnly, setZoneQuoteOnly] = useState(false);
   const [zoneOutOfArea, setZoneOutOfArea] = useState(false);
   const [zoneBasePrice, setZoneBasePrice] = useState("");
+  const [zoneEscalationEmail, setZoneEscalationEmail] = useState("");
+  const [zoneEscalationName, setZoneEscalationName] = useState("");
+  const [staffUsers, setStaffUsers] = useState<Array<{ id: string; name: string; email: string; role: string }>>([]);
   const [zoneBands, setZoneBands] = useState<PricingBandItem[]>([]);
   const [savingZone, setSavingZone] = useState(false);
 
@@ -323,9 +329,10 @@ export default function AdminPricingPage() {
     try {
       setLoading(true);
       const stateParam = selectedState === "ALL" ? "" : `?state=${selectedState}`;
-      const [zonesRes, addonsRes] = await Promise.all([
+      const [zonesRes, addonsRes, usersRes] = await Promise.all([
         fetch(`/api/admin/pricing/zones${stateParam}`),
         fetch(`/api/admin/pricing/addons${stateParam}`),
+        fetch("/api/admin/users"),
       ]);
 
       if (zonesRes.ok) {
@@ -335,6 +342,12 @@ export default function AdminPricingPage() {
       if (addonsRes.ok) {
         const addonsData = await addonsRes.json();
         setAddons(addonsData);
+      }
+      if (usersRes.ok) {
+        const usersData = await usersRes.json();
+        if (Array.isArray(usersData)) {
+          setStaffUsers(usersData);
+        }
       }
     } catch (err: any) {
       console.error("Failed to load pricing data:", err);
@@ -649,6 +662,8 @@ export default function AdminPricingPage() {
       setZoneQuoteOnly(zone.quoteOnly);
       setZoneOutOfArea(zone.outOfArea);
       setZoneBasePrice(zone.basePrice !== null ? String(zone.basePrice) : "");
+      setZoneEscalationEmail(zone.escalationEmail || "");
+      setZoneEscalationName(zone.escalationName || "");
       setZoneBands(zone.bands.map((b) => ({ maxAcres: b.maxAcres, price: b.price })));
       (window as any).__tempDrawnGeometry = zone.geometry;
     } else {
@@ -661,6 +676,8 @@ export default function AdminPricingPage() {
       setZoneQuoteOnly(false);
       setZoneOutOfArea(false);
       setZoneBasePrice("");
+      setZoneEscalationEmail("");
+      setZoneEscalationName("");
       setZoneBands([{ maxAcres: 1.0, price: 750 }]);
       (window as any).__tempDrawnGeometry = null;
     }
@@ -684,6 +701,8 @@ export default function AdminPricingPage() {
         outOfArea: zoneOutOfArea,
         basePrice: zoneBasePrice ? parseFloat(zoneBasePrice) : null,
         geometry,
+        escalationEmail: zoneEscalationEmail ? zoneEscalationEmail.trim() : null,
+        escalationName: zoneEscalationName ? zoneEscalationName.trim() : null,
         bands: zoneBands.map((b) => ({
           maxAcres: parseFloat(String(b.maxAcres)),
           price: parseFloat(String(b.price)),
@@ -1814,6 +1833,13 @@ export default function AdminPricingPage() {
                             {zone.description}
                           </p>
                         )}
+                        <div className="flex items-center text-[11px] text-slate-600 dark:text-slate-400 space-x-1.5 pt-0.5">
+                          <Mail className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                          <span>Escalation Recipient:</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">
+                            {zone.escalationEmail ? `${zone.escalationName || "Reviewer"} (${zone.escalationEmail})` : "Default Regional PM"}
+                          </span>
+                        </div>
                       </div>
                       <div className="flex items-center space-x-1">
                         <button
@@ -2049,6 +2075,70 @@ export default function AdminPricingPage() {
                       Out of Area (Decline)
                     </span>
                   </label>
+                </div>
+
+                {/* Review & Issue Escalation Settings */}
+                <div className="p-3 bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 rounded-xl space-y-2.5">
+                  <div className="flex items-center space-x-1.5">
+                    <Mail className="w-4 h-4 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+                    <span className="font-bold text-xs text-amber-900 dark:text-amber-200">
+                      Over-Acreage & Complications Escalation Recipient
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-tight">
+                    Specify who is automatically notified when a quote in this zone exceeds acreage bands or has complicating scope issues.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Reviewer Email Address
+                      </label>
+                      <input
+                        type="email"
+                        value={zoneEscalationEmail}
+                        onChange={(e) => setZoneEscalationEmail(e.target.value)}
+                        placeholder="e.g. pm-raleigh@mjslandsurvey.com"
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                        Reviewer Contact / Role Name
+                      </label>
+                      <input
+                        type="text"
+                        value={zoneEscalationName}
+                        onChange={(e) => setZoneEscalationName(e.target.value)}
+                        placeholder="e.g. NC Division Project Manager"
+                        className="w-full px-2.5 py-1.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-xs text-slate-900 dark:text-slate-100"
+                      />
+                    </div>
+                  </div>
+                  {staffUsers.length > 0 && (
+                    <div>
+                      <label className="block text-[10px] font-medium text-slate-500 dark:text-slate-400 mb-1">
+                        Quick Fill from Staff Directory:
+                      </label>
+                      <select
+                        onChange={(e) => {
+                          const selected = staffUsers.find((u) => u.id === e.target.value);
+                          if (selected) {
+                            setZoneEscalationEmail(selected.email);
+                            setZoneEscalationName(selected.name);
+                          }
+                        }}
+                        defaultValue=""
+                        className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded text-[11px] text-slate-700 dark:text-slate-300"
+                      >
+                        <option value="">-- Choose Staff User to Auto-Fill --</option>
+                        {staffUsers.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name} ({u.role}) - {u.email}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {/* Acreage Bands Editor */}

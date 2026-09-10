@@ -43,7 +43,20 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { name, state, description, color, priority, quoteOnly, outOfArea, basePrice, geometry, bands } = body;
+    const {
+      name,
+      state,
+      description,
+      color,
+      priority,
+      quoteOnly,
+      outOfArea,
+      basePrice,
+      geometry,
+      escalationEmail,
+      escalationName,
+      bands,
+    } = body;
 
     if (!name || !state) {
       return NextResponse.json(
@@ -63,6 +76,8 @@ export async function POST(req: NextRequest) {
         outOfArea: Boolean(outOfArea),
         basePrice: basePrice !== undefined && basePrice !== null && basePrice !== "" ? parseFloat(basePrice) : null,
         geometry: geometry || null,
+        escalationEmail: escalationEmail ? escalationEmail.trim() : null,
+        escalationName: escalationName ? escalationName.trim() : null,
         bands: {
           create: Array.isArray(bands)
             ? bands.map((b: any) => ({

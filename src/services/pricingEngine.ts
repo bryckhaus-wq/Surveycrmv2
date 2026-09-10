@@ -36,6 +36,8 @@ export interface PricingCalculationResult {
     name: string;
     state: string;
     description?: string | null;
+    escalationEmail?: string | null;
+    escalationName?: string | null;
   } | null;
   requiresReview?: boolean;
   reason?: string;
@@ -43,6 +45,7 @@ export interface PricingCalculationResult {
   sayScript?: string;
   assignedManager?: string;
   assignedRole?: string;
+  assignedManagerEmail?: string;
 }
 
 /**
@@ -163,7 +166,82 @@ export async function calculateQuotePrice(
     state = "NY";
   }
 
-  const { assignedManager, assignedRole } = getManagerInfo(state);
+  // Pre-resolve pricing zone from DB to leverage zone-level escalation configuration
+  let matchedZone: any = null;
+
+  if (input.zoneId) {
+    matchedZone = await (prisma as any).pricingZone.findUnique({
+      where: { id: input.zoneId },
+      include: { bands: { orderBy: { maxAcres: "asc" } } },
+    });
+  }
+
+  if (!matchedZone) {
+    const zones: any[] = await (prisma as any).pricingZone.findMany({
+      where: { state },
+      include: { bands: { orderBy: { maxAcres: "asc" } } },
+      orderBy: [{ priority: "desc" }, { name: "asc" }],
+    });
+
+    // 1. Spatial Match: Test Point-in-Polygon against drawn map boundaries (ordered by priority desc)
+    if (lat !== null && lon !== null) {
+      for (const z of zones) {
+        if (z.geometry && isPointInPolygon([lon, lat], z.geometry)) {
+          matchedZone = z;
+          break;
+        }
+      }
+    }
+
+    // 2. Fallback by county / region heuristics if point is not inside a drawn polygon
+    if (!matchedZone) {
+      const normCounty = (county || "").trim().toLowerCase();
+      if (state === "NY") {
+        if (normCounty.includes("nassau")) {
+          matchedZone = zones.find((z: any) => z.name.includes("Zone A"));
+        } else if (normCounty.includes("suffolk")) {
+          if (normCounty.includes("east") || (lon !== null && lon > -72.5)) {
+            matchedZone = zones.find((z: any) => z.name.includes("Zone E"));
+          } else {
+            matchedZone = zones.find((z: any) => z.name.includes("Zone B"));
+          }
+        } else if (normCounty.includes("westchester")) {
+          matchedZone = zones.find((z: any) => z.name.includes("Zone C"));
+        } else if (
+          normCounty.includes("bronx") ||
+          normCounty.includes("staten") ||
+          normCounty.includes("rockland") ||
+          normCounty.includes("putnam")
+        ) {
+          matchedZone = zones.find((z: any) => z.name.includes("Zone D"));
+        } else if (normCounty.includes("manhattan") || normCounty.includes("new york")) {
+          matchedZone = zones.find((z: any) => z.outOfArea);
+        }
+      } else if (state === "NC") {
+        matchedZone = zones.find((z: any) => z.name.includes("Zone 1")) || zones[0];
+      }
+    }
+
+    if (!matchedZone && zones.length > 0) {
+      matchedZone = zones[0];
+    }
+  }
+
+  const defaultManager = getManagerInfo(state);
+  const assignedManager = matchedZone?.escalationName || defaultManager.assignedManager;
+  const assignedRole = matchedZone?.escalationName
+    ? `${matchedZone.name} Escalation Reviewer`
+    : defaultManager.assignedRole;
+  const assignedManagerEmail = matchedZone?.escalationEmail || undefined;
+
+  const zonePayload = matchedZone ? {
+    id: matchedZone.id,
+    name: matchedZone.name,
+    state: matchedZone.state,
+    description: matchedZone.description,
+    escalationEmail: matchedZone.escalationEmail,
+    escalationName: matchedZone.escalationName,
+  } : null;
 
   const routeResult = (reason: string, detail: string): PricingCalculationResult => ({
     mode: "route",
@@ -172,6 +250,8 @@ export async function calculateQuotePrice(
     detail,
     assignedManager,
     assignedRole,
+    assignedManagerEmail,
+    zone: zonePayload,
   });
 
   const declineResult = (reason: string, detail: string, sayScript: string): PricingCalculationResult => ({
@@ -180,6 +260,10 @@ export async function calculateQuotePrice(
     reason,
     detail,
     sayScript,
+    assignedManager,
+    assignedRole,
+    assignedManagerEmail,
+    zone: zonePayload,
   });
 
   // 1. Check territory-specific geographic product restrictions
@@ -297,67 +381,7 @@ export async function calculateQuotePrice(
     );
   }
 
-  // 5. Determine Pricing Zone from DB
-  let matchedZone: any = null;
-
-  if (input.zoneId) {
-    matchedZone = await (prisma as any).pricingZone.findUnique({
-      where: { id: input.zoneId },
-      include: { bands: { orderBy: { maxAcres: "asc" } } },
-    });
-  }
-
-  if (!matchedZone) {
-    const zones: any[] = await (prisma as any).pricingZone.findMany({
-      where: { state },
-      include: { bands: { orderBy: { maxAcres: "asc" } } },
-      orderBy: [{ priority: "desc" }, { name: "asc" }],
-    });
-
-    // 1. Spatial Match: Test Point-in-Polygon against drawn map boundaries (ordered by priority desc)
-    if (lat !== null && lon !== null) {
-      for (const z of zones) {
-        if (z.geometry && isPointInPolygon([lon, lat], z.geometry)) {
-          matchedZone = z;
-          break;
-        }
-      }
-    }
-
-    // 2. Fallback by county / region heuristics if point is not inside a drawn polygon
-    if (!matchedZone) {
-      const normCounty = (county || "").trim().toLowerCase();
-      if (state === "NY") {
-        if (normCounty.includes("nassau")) {
-          matchedZone = zones.find((z: any) => z.name.includes("Zone A"));
-        } else if (normCounty.includes("suffolk")) {
-          if (normCounty.includes("east") || (lon !== null && lon > -72.5)) {
-            matchedZone = zones.find((z: any) => z.name.includes("Zone E"));
-          } else {
-            matchedZone = zones.find((z: any) => z.name.includes("Zone B"));
-          }
-        } else if (normCounty.includes("westchester")) {
-          matchedZone = zones.find((z: any) => z.name.includes("Zone C"));
-        } else if (
-          normCounty.includes("bronx") ||
-          normCounty.includes("staten") ||
-          normCounty.includes("rockland") ||
-          normCounty.includes("putnam")
-        ) {
-          matchedZone = zones.find((z: any) => z.name.includes("Zone D"));
-        } else if (normCounty.includes("manhattan") || normCounty.includes("new york")) {
-          matchedZone = zones.find((z: any) => z.outOfArea);
-        }
-      } else if (state === "NC") {
-        matchedZone = zones.find((z: any) => z.name.includes("Zone 1")) || zones[0];
-      }
-    }
-
-    if (!matchedZone && zones.length > 0) {
-      matchedZone = zones[0];
-    }
-  }
-
+  // 5. Verify Pricing Zone match
   if (!matchedZone) {
     return routeResult(
       "No Pricing Zone Configured",

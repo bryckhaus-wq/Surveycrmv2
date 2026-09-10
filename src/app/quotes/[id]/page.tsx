@@ -237,9 +237,32 @@ export default function QuoteDetailPage() {
   // Dynamic Pricing Calculation State
   const [pricingResult, setPricingResult] = useState<PricingCalculationResult | null>(null);
   const [calculatingPrice, setCalculatingPrice] = useState(false);
+  const [escalatingReview, setEscalatingReview] = useState(false);
+  const [escalationStatus, setEscalationStatus] = useState<string | null>(null);
   const [priceOverrideUnlocked, setPriceOverrideUnlocked] = useState(false);
   const [savingPrice, setSavingPrice] = useState(false);
   const [quotePriceInput, setQuotePriceInput] = useState<string>("");
+
+  const handleSendEscalationEmail = async () => {
+    if (!quote) return;
+    try {
+      setEscalatingReview(true);
+      setEscalationStatus(null);
+      const res = await fetch(`/api/quotes/${quote.id}/escalate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to dispatch review notification");
+      setEscalationStatus(`Review email successfully dispatched to ${data.recipient.name} (${data.recipient.email})!`);
+      fetchAuditLogs();
+    } catch (err: any) {
+      setEscalationStatus(`Error: ${err.message}`);
+    } finally {
+      setEscalatingReview(false);
+    }
+  };
 
   const handleAssignCsr = async (newCsrId: string) => {
     try {
@@ -1941,7 +1964,7 @@ export default function QuoteDetailPage() {
                   )}
 
                   {pricingResult.mode === "route" && (
-                    <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg p-3 space-y-2 text-xs text-amber-900 dark:text-amber-200">
+                    <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-700 rounded-lg p-3 space-y-2.5 text-xs text-amber-900 dark:text-amber-200">
                       <div className="flex items-center space-x-1.5 font-bold">
                         <AlertTriangle className="w-4 h-4 text-amber-600 flex-shrink-0" />
                         <span>Requires Project Manager Review</span>
@@ -1955,22 +1978,50 @@ export default function QuoteDetailPage() {
                         </p>
                       )}
 
-                      <div className="pt-1">
-                        <label className="block text-[11px] font-bold text-amber-900 dark:text-amber-200 mb-1">
-                          Assign Reviewing Staff Member:
-                        </label>
-                        <select
-                          value={quote.assignedCsrId || quote.csr?.id || ""}
-                          onChange={(e) => handleAssignCsr(e.target.value)}
-                          className="w-full px-2 py-1 bg-white dark:bg-slate-900 border border-amber-300 dark:border-amber-700 rounded text-xs text-slate-900 dark:text-slate-100 font-medium"
+                      {/* Pre-configured Escalation Contact from Price Matrix */}
+                      <div className="pt-2 border-t border-amber-200/60 dark:border-amber-800/80 space-y-2">
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-0.5">
+                            <span className="text-[10px] uppercase font-bold text-amber-800 dark:text-amber-400 block tracking-wider">
+                              Matrix Assigned Reviewer:
+                            </span>
+                            <div className="font-semibold text-xs text-slate-900 dark:text-slate-100 flex items-center space-x-1">
+                              <Mail className="w-3 h-3 text-amber-600 dark:text-amber-400" />
+                              <span>{pricingResult.assignedManager || "Project Manager"}</span>
+                              {pricingResult.assignedManagerEmail && (
+                                <span className="text-slate-500 font-normal">({pricingResult.assignedManagerEmail})</span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 italic">
+                              Configured in backend Price Matrix ({pricingResult.zone?.name || "Regional Zone"})
+                            </p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSendEscalationEmail}
+                          disabled={escalatingReview}
+                          className="w-full py-1.5 px-3 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold text-xs rounded-lg shadow-sm transition flex items-center justify-center space-x-1.5"
                         >
-                          <option value="">-- Select Staff Reviewer --</option>
-                          {users.map((u) => (
-                            <option key={u.id} value={u.id}>
-                              {u.name} ({u.role.replace("_", " ")})
-                            </option>
-                          ))}
-                        </select>
+                          {escalatingReview ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Sending Review Email...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-3.5 h-3.5" />
+                              <span>Email Review Request to {pricingResult.assignedManager || "PM"}</span>
+                            </>
+                          )}
+                        </button>
+
+                        {escalationStatus && (
+                          <p className={`text-[11px] p-2 rounded font-medium ${escalationStatus.startsWith("Error") ? "bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300"}`}>
+                            {escalationStatus}
+                          </p>
+                        )}
                       </div>
                     </div>
                   )}
