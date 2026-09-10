@@ -122,25 +122,25 @@ async function main() {
   // 3. Seed Users with Spoke assignments
   const usersData = [
     {
-      email: "admin@mjslandsurvey.com",
+      email: "admin@landsurvey.com",
       name: "System Admin",
       role: Role.ADMIN,
       spokeId: createdSpokes["NY"]?.id || null,
     },
     {
-      email: "csr@mjslandsurvey.com",
+      email: "csr@landsurvey.com",
       name: "Customer Specialist",
       role: Role.CSR,
       spokeId: createdSpokes["FL"]?.id || null,
     },
     {
-      email: "drafter@mjslandsurvey.com",
+      email: "drafter@landsurvey.com",
       name: "CAD Drafter",
       role: Role.DRAFTER,
       spokeId: createdSpokes["NC"]?.id || null,
     },
     {
-      email: "field@mjslandsurvey.com",
+      email: "field@landsurvey.com",
       name: "Field Party Chief",
       role: Role.FIELD_WORKER,
       spokeId: createdSpokes["FL"]?.id || null,
@@ -149,7 +149,7 @@ async function main() {
       longitude: -73.3736,
     },
     {
-      email: "pls@mjslandsurvey.com",
+      email: "pls@landsurvey.com",
       name: "Professional Land Surveyor",
       role: Role.SIGNING_SURVEYOR,
       spokeId: createdSpokes["NY"]?.id || null,
